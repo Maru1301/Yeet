@@ -1,0 +1,110 @@
+/** Google font Roboto — imported directly from main.ts so Vite resolves paths relative to this file */
+
+/* roboto-100 */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 100;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-100.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-100.ttf') format('truetype');
+}
+/* roboto-100italic */
+@font-face {
+  font-family: 'Roboto';
+  font-style: italic;
+  font-weight: 100;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-100italic.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-100italic.ttf') format('truetype');
+}
+/* roboto-300 */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 300;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-300.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-300.ttf') format('truetype');
+}
+/* roboto-300italic */
+@font-face {
+  font-family: 'Roboto';
+  font-style: italic;
+  font-weight: 300;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-300italic.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-300italic.ttf') format('truetype');
+}
+/* roboto-regular */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 400;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-regular.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-regular.ttf') format('truetype');
+}
+/* roboto-italic */
+@font-face {
+  font-family: 'Roboto';
+  font-style: italic;
+  font-weight: 400;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-italic.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-italic.ttf') format('truetype');
+}
+/* roboto-500 */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 500;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-500.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-500.ttf') format('truetype');
+}
+/* roboto-500italic */
+@font-face {
+  font-family: 'Roboto';
+  font-style: italic;
+  font-weight: 500;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-500italic.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-500italic.ttf') format('truetype');
+}
+/* roboto-700 */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 700;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-700.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-700.ttf') format('truetype');
+}
+/* roboto-700italic */
+@font-face {
+  font-family: 'Roboto';
+  font-style: italic;
+  font-weight: 700;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-700italic.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-700italic.ttf') format('truetype');
+}
+/* roboto-900 */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 900;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-900.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-900.ttf') format('truetype');
+}
+/* roboto-900italic */
+@font-face {
+  font-family: 'Roboto';
+  font-style: italic;
+  font-weight: 900;
+  src: local(''),
+       url('../assets/fonts/google-font/roboto-v29-latin-900italic.woff2') format('woff2'),
+       url('../assets/fonts/google-font/roboto-v29-latin-900italic.ttf') format('truetype');
+}

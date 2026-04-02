@@ -1,0 +1,205 @@
+/** SCSS Styles */
+
+/** Material Design Icons — imported via @mdi/font package in main.ts */
+/** Roboto fonts — imported via src/styles/fonts.scss in main.ts */
+
+@use "./variables" as *;
+
+html {
+  overflow-y: scroll;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/** Kingston Theme */
+
+:root {
+  --bg-alpha: rgba(var(--v-theme-surface-variant-alpha-get-channels), 0.5);
+
+  --theme-card-opacity: 0.2;
+}
+
+/*---------------------
+  Font-family
+---------------------*/
+
+.v-application {
+  font-family: ui-sans-serif, Roboto, Microsoft JhengHei, sans-serif;
+}
+
+/*---------------------
+  Navigation
+---------------------*/
+
+// [Dark] Nav Active color
+.v-navigation-drawer.theme--dark {
+
+  .v-list .v-list-item--active,
+  .v-list .v-list-item--active .v-icon {
+    color: $Kingston_LightRed;
+  }
+}
+
+/*---------------------
+  Select/Text field
+---------------------*/
+
+// [Dark] Select/Text field Label - regular
+.theme--dark.v-input--is-label-active:not(.v-input--selection-controls) .v-label {
+  color: $Kingston_LightRed;
+}
+
+// [Light] Select/Text field Underline - regular hover
+.theme--light.v-text-field>.v-input__control>.v-input__slot:after {
+  border-color: $Kingston_Black;
+}
+
+.theme--light.v-label.v-label--active {
+  color: $Kingston_GenerativeAI_Primary;
+}
+
+/** GenerativeAI Custom Elements */
+
+.lightBgColor {
+  background-color: rgba($Kingston_GenerativeAI_LightBg, 0.2) !important;
+}
+
+.lightBgColorChip {
+  background-color: rgba($Kingston_GenerativeAI_LightBg, 0.5) !important;
+}
+
+.chat-bg {
+  background: rgba(var(--v-theme-background)) !important;
+}
+
+/* Tutorial on https://fossheim.io/writing/posts/css-text-gradient. */
+
+@keyframes gradientAnimate {
+  0% {
+    background-position: 0% 0%;
+  }
+
+  100% {
+    background-position: 100% 100%;
+  }
+}
+
+.gradient-text {
+  /* Fallback: Set a background color. */
+  background-color: #FA3323;
+
+  /* Create the gradient. */
+  background-image: linear-gradient(90deg,
+      #FA3323 20%,
+      #6100FF 40%,
+      #FA3323 60%,
+      #6100FF 80%);
+
+  /* Set the background size and repeat properties. */
+  background-size: 200% auto;
+  background-repeat: repeat;
+
+  /* Use the text as a mask for the background. */
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -moz-background-clip: text;
+  -moz-text-fill-color: transparent;
+  animation: gradientAnimate 3s ease-in-out infinite alternate;
+  font-size: 24px;
+}
+
+.deep-purple-text {
+  color: #4B0082;
+}
+
+.mermaid-wrap {
+  position: relative;
+}
+
+.mermaid-tooltip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: #ffffff;
+  background: rgba(17, 24, 39, 0.92);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+}
+
+.mermaid-tooltip.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.btn-icon-pink {
+  color: rgba(var(--v-theme-pink));
+  opacity: 0.8 !important;
+
+  &:hover {
+    opacity: 1 !important;
+  }
+}
+
+.btn-icon-purple {
+  color: rgba(var(--v-theme-purple));
+  opacity: 0.8 !important;
+
+  &:hover {
+    opacity: 1 !important;
+  }
+}
+
+.btn-icon-blue {
+  color: rgba(var(--v-theme-blue));
+  opacity: 0.8 !important;
+
+  &:hover {
+    opacity: 1 !important;
+  }
+}
+
+.functionalBtn {
+  background: rgba(var(--v-theme-inputBtn)) !important;
+
+  &.v-theme--dark {
+    background: rgba(var(--v-theme-inputBtn), 0.1) !important;
+  }
+}
+
+[class*="-bg-card"] {
+  // 這裡假設你傳入的是 --v-theme-xxx-get-channels
+  background: rgba(var(--card-rgb), 0.2);
+
+  &.v-theme--dark {
+    background: rgba(var(--card-rgb), 1);
+  }
+}
+
+.pink-bg-card {
+  --card-rgb: var(--v-theme-pink);
+}
+
+.purple-bg-card {
+  --card-rgb: var(--v-theme-purple);
+}
+
+.blue-bg-card {
+  --card-rgb: var(--v-theme-blue);
+}
+
+.v-theme--dark .mermaid svg {
+  filter: invert(0.9) hue-rotate(180deg);
+}
