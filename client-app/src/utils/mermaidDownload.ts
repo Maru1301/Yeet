@@ -20,15 +20,11 @@ export function initMermaid(options: Record<string, unknown> = {}): void {
     quadrantChart: { useMaxWidth: false },
     xyChart: { useMaxWidth: false },
     requirement: { useMaxWidth: false },
-    architecture: { useMaxWidth: false },
     mindmap: { useMaxWidth: false },
-    kanban: { useMaxWidth: false },
     gitGraph: { useMaxWidth: false },
     c4: { useMaxWidth: false },
     sankey: { useMaxWidth: false },
-    packet: { useMaxWidth: false },
     block: { useMaxWidth: false },
-    radar: { useMaxWidth: false },
     ...options,
   });
   mermaidInitialized = true;
@@ -299,119 +295,94 @@ export async function renderMermaidWithDownloads(querySelector: string): Promise
   document.body.removeChild(offscreen);
 }
 
-function sanitizeMermaidSource(source: string): string {
+const BRACKET_PAIRS: Record<string, string> = { '[': ']', '(': ')', '{': '}' };
 
-  source = source.replace(/[–]/g, '--');
+function getBracketSequences(openChar: string, nextChar: string): { openSeq: string; closeSeq: string; } {
+  const closeChar = BRACKET_PAIRS[openChar];
+  const isDouble = nextChar === openChar || (openChar === '[' && nextChar === '(');
+  if (!isDouble) return { openSeq: openChar, closeSeq: closeChar };
+  const openSeq = openChar + nextChar;
+  const closeSeq = openChar === '[' && nextChar === '(' ? ')]' : closeChar + closeChar;
+  return { openSeq, closeSeq };
+}
 
-  // 找出節點的完整括號範圍（支援巢狀）
-  function extractNodeContent(str: string, startIdx: number): { content: string, endIdx: number; } | null {
-    // 判斷起始括號類型
-    const openers: Record<string, string> = {
-      '[': ']', '(': ')', '{': '}'
-    };
-
-    let i = startIdx;
-    let open = str[i];
-    let close = openers[open];
-    if (!close) return null;
-
-    // 處理雙重起始括號 [[ (( {{ [(
-    let openSeq = open;
-    let closeSeq = close;
-    if (str[i + 1] === open || (open === '[' && str[i + 1] === '(')) {
-      openSeq = str[i] + str[i + 1];
-      closeSeq = open === '[' && str[i + 1] === '(' ? ')]' : close + close;
-      i += 2;
-    } else {
-      i += 1;
+function scanBracketContent(
+  str: string,
+  startIdx: number,
+  openChar: string,
+  closeChar: string,
+  closeSeq: string,
+): { content: string; endIdx: number; } | null {
+  let depth = 1;
+  let content = '';
+  let i = startIdx;
+  while (i < str.length) {
+    if (str.slice(i, i + closeSeq.length) === closeSeq && depth === 1) {
+      return { content, endIdx: i + closeSeq.length };
     }
-
-    // 逐字元掃描，追蹤深度
-    let depth = 1;
-    let content = '';
-    while (i < str.length) {
-      // 嘗試匹配結束序列
-      if (str.slice(i, i + closeSeq.length) === closeSeq && depth === 1) {
-        return { content, endIdx: i + closeSeq.length - 1 };
-      }
-      // 遇到同類開括號，深度+1
-      if (str[i] === open) depth++;
-      // 遇到對應閉括號，深度-1
-      if (str[i] === close) depth--;
-      content += str[i];
-      i++;
-    }
-    return null; // 括號不匹配
+    if (str[i] === openChar) depth++;
+    if (str[i] === closeChar) depth--;
+    content += str[i];
+    i++;
   }
+  return null;
+}
 
-  const sanitizeContent = (content: string, openSeq: string, closeSeq: string): string => {
-    const clean = content.trim().replace(/^"(.*)"$/, '$1');
-    // 將內容中的括號換成全形，避免 Mermaid 解析誤判
-    const escaped = clean.replace(/\(/g, '（').replace(/\)/g, '）')
-      .replace(/\[/g, '【').replace(/\]/g, '】');
-    return `${openSeq}"${escaped}"${closeSeq}`;
-  };
+function sanitizeNodeContent(content: string, openSeq: string, closeSeq: string): string {
+  const clean = content.trim().replace(/^"(.*)"$/, '$1');
+  const escaped = clean
+    .replace(/\(/g, '（').replace(/\)/g, '）')
+    .replace(/\[/g, '【').replace(/\]/g, '】');
+  return `${openSeq}"${escaped}"${closeSeq}`;
+}
 
-  // 修正單個 % 註解
-  let result = source.replace(/^%(?!%)/gm, '%%');
+export function fixSubgraphLabels(source: string): string {
+  return source.replace(
+    /^(\s*subgraph\s+)(?!")([^\n]+)$/gm,
+    (match, prefix, label) => {
+      const trimmed = label.trim();
+      if (trimmed.startsWith('"')) return match;
+      // "id [title]" form — quote the title if it has special chars
+      const bracketMatch = trimmed.match(/^(\S+)\s*\[(.+)\]$/);
+      if (bracketMatch) {
+        const [, id, title] = bracketMatch;
+        return /[(){}]/.test(title) ? `${prefix}${id} ["${title.trim()}"]` : match;
+      }
+      // Plain label — quote if it contains special chars
+      return /[()[\]{}]/.test(trimmed) ? `${prefix}"${trimmed}"` : match;
+    },
+  );
+}
 
-  // 掃描所有節點 ID + 括號組合
-  result = result.replace(/(\w+)(?=[\[\(\{])/g, (match, id, offset) => {
-    const afterId = offset + id.length;
-    const extracted = extractNodeContent(result, afterId);
-    // 僅標記位置，實際替換在下方逐位處理
-    return match;
-  });
+export function sanitizeMermaidSource(source: string): string {
+  const normalized = fixSubgraphLabels(
+    source.replace(/[–]/g, '--').replace(/^%(?!%)/gm, '%%'),
+  );
 
-  // 改用逐字元處理，找出 word+ 括號 的組合
   let output = '';
   let i = 0;
-  while (i < result.length) {
-    // 嘗試匹配節點 ID
-    const idMatch = result.slice(i).match(/^(\w+)([\[\(\{])/);
+  while (i < normalized.length) {
+    const idMatch = normalized.slice(i).match(/^(\w+)([\[\(\{])/);
     if (idMatch) {
       const id = idMatch[1];
       const startBracket = i + id.length;
-
-      const openers: Record<string, string> = { '[': ']', '(': ')', '{': '}' };
-      const openChar = result[startBracket];
-      const closeChar = openers[openChar];
+      const openChar = normalized[startBracket];
+      const closeChar = BRACKET_PAIRS[openChar];
 
       if (closeChar) {
-        // 判斷是否雙重括號
-        const nextChar = result[startBracket + 1];
-        const isDouble = nextChar === openChar || (openChar === '[' && nextChar === '(');
-        const openSeq = isDouble ? openChar + nextChar : openChar;
-        const closeSeq = openChar === '[' && nextChar === '(' ? ')]'
-          : isDouble ? closeChar + closeChar
-            : closeChar;
+        const nextChar = normalized[startBracket + 1];
+        const { openSeq, closeSeq } = getBracketSequences(openChar, nextChar);
+        const result = scanBracketContent(normalized, startBracket + openSeq.length, openChar, closeChar, closeSeq);
 
-        // 從內容起點開始掃描
-        let j = startBracket + openSeq.length;
-        let depth = 1;
-        let content = '';
-        let found = false;
-
-        while (j < result.length) {
-          const slice = result.slice(j, j + closeSeq.length);
-          if (slice === closeSeq && depth === 1) {
-            // 找到對應結尾
-            output += id + sanitizeContent(content, openSeq, closeSeq);
-            i = j + closeSeq.length;
-            found = true;
-            break;
-          }
-          if (result[j] === openChar) depth++;
-          if (result[j] === closeChar) depth--;
-          content += result[j];
-          j++;
+        if (result) {
+          output += id + sanitizeNodeContent(result.content, openSeq, closeSeq);
+          i = result.endIdx;
+          continue;
         }
-
-        if (found) continue;
       }
     }
 
-    output += result[i];
+    output += normalized[i];
     i++;
   }
 

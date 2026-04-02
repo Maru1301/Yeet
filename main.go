@@ -4,14 +4,19 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 )
+
+//go:embed all:client-app/dist
+var staticFiles embed.FS
 
 // ── frontend request / response shapes ───────────────────────────────────────
 
@@ -84,6 +89,7 @@ func main() {
 	mux.HandleFunc("/chat/generate-topic", cors(handleGenTopic(apiKey)))
 	mux.HandleFunc("/chat/record/", cors(handleRecord()))
 	mux.HandleFunc("/agent/", cors(handleStub()))
+	mux.HandleFunc("/", handleStatic())
 
 	log.Printf("listening on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, mux))
@@ -111,7 +117,7 @@ func cors(next http.HandlerFunc) http.HandlerFunc {
 
 // ── handlers ──────────────────────────────────────────────────────────────────
 
-func handleStart(apiKey string) http.HandlerFunc {
+func handleStart(_ string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req startReq
 		json.NewDecoder(r.Body).Decode(&req)
@@ -129,7 +135,7 @@ func handleStart(apiKey string) http.HandlerFunc {
 	}
 }
 
-func handleModels(apiKey string) http.HandlerFunc {
+func handleModels(_ string) http.HandlerFunc {
 	type model struct {
 		Name        string `json:"name"`
 		DisplayName string `json:"displayName"`
@@ -353,6 +359,33 @@ func handleRecord() http.HandlerFunc {
 func handleStub() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "agent endpoints not implemented", http.StatusNotImplemented)
+	}
+}
+
+func handleStatic() http.HandlerFunc {
+	sub, err := fs.Sub(staticFiles, "client-app/dist")
+	if err != nil {
+		log.Fatalf("handleStatic: %v", err)
+	}
+	fileServer := http.FileServer(http.FS(sub))
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Check if the requested file exists in the embedded FS
+		name := strings.TrimPrefix(r.URL.Path, "/")
+		if name == "" {
+			name = "index.html"
+		}
+		if _, err := fs.Stat(sub, name); err != nil {
+			// SPA fallback: serve index.html for unknown paths (client-side routing)
+			data, err := fs.ReadFile(sub, "index.html")
+			if err != nil {
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(data)
+			return
+		}
+		fileServer.ServeHTTP(w, r)
 	}
 }
 
