@@ -19,7 +19,7 @@
     </v-chip>
 
     <v-tooltip location="bottom"
-               :content-props="{ style: 'background-color: #a7a7a8' }">
+               content-class="bg-grey-darken-1">
       <template v-slot:activator="{ props: tooltipProps }">
         <div v-bind="tooltipProps">
           <v-file-input v-model="input"
@@ -119,11 +119,11 @@ defineExpose({ removeFile });
 }
 
 .file-chip:hover :deep(.v-chip__underlay) {
-  background-color: #7e7d7d !important;
+  background-color: var(--code-bg) !important;
 }
 
 .file-chip :deep(.v-chip__close:hover .v-icon) {
-  color: #555555 !important;
+  color: var(--text-muted) !important;
 }
 
 :deep(.compact-file-input .v-input__prepend-outer),

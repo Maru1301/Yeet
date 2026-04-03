@@ -9,7 +9,7 @@
                density="compact"
                variant="flat"
                @click="copyFullPath(chatId)">
-          <v-icon color="#717275"
+          <v-icon class="action-icon"
                   size="default">mdi-share-variant</v-icon>
         </v-btn>
       </template>
@@ -25,7 +25,7 @@
                density="compact"
                variant="flat"
                @click="copyContent(message.markdownContent)">
-          <v-icon color="#717275">mdi-content-copy</v-icon>
+          <v-icon class="action-icon">mdi-content-copy</v-icon>
         </v-btn>
       </template>
       <span>Content Copied</span>
@@ -77,5 +77,14 @@ async function copyContent(content: string): Promise<void> {
   height: 28px;
   min-width: 28px;
   background-color: transparent;
+}
+
+.action-icon {
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: rgb(var(--v-theme-primary));
+  }
 }
 </style>

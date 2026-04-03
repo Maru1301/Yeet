@@ -31,13 +31,21 @@
                color="#B0B3B8"
                @click="menu = false" />
         <v-text-field v-model="search"
-                      label="Search Experts"
-                      variant="underlined"
+                      placeholder="Search Experts..."
                       hide-details
+                      variant="solo"
+                      rounded="xl"
+                      bg-color="inputBtn"
+                      class="mr-2 pm-search-field"
+                      style="flex: 1 1 0; min-width: 0;"
+                      density="compact"
                       clearable
-                      prepend-inner-icon="mdi-magnify"
-                      class="flex-grow-1 mr-5 mb-5"
-                      @click.stop />
+                      flat
+                      @click.stop>
+          <template v-slot:prepend-inner>
+            <v-icon class="search-icon">mdi-magnify</v-icon>
+          </template>
+        </v-text-field>
       </v-toolbar>
 
       <v-virtual-scroll v-if="searching.length > 0"

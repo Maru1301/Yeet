@@ -20,18 +20,20 @@ const sharedColors = {
 
 const lightColors = {
   background: '#EAEEF3',
+  surface: '#fff',
   sideBar: '#A2A2D4',
   darkPrimary: '#585DAC',
-  surface: '#fff',
   inputBtn: '#F7F8FE',
   backBtn: '#212121',
   listItemBg: '#F7F8FE',
 };
 
 const darkColors = {
+  background: '#1a1b2e',
+  surface: '#22243a',
   sideBar: '#272727',
   darkPrimary: '#DB2627',
-  inputBtn: '#F7F8FE',
+  inputBtn: '#2e3048',
   backBtn: '#FAFAFA',
   listItemBg: '#353B46',
 };

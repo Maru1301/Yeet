@@ -789,7 +789,7 @@ watch(messages, async () => {
 }
 
 .chat-user {
-  background: #DB2627;
+  background: rgb(var(--v-theme-primary));
   color: #FFF;
   font-weight: 700;
   border-radius: 20px 20px 3px 20px;
@@ -836,7 +836,7 @@ watch(messages, async () => {
 // 3. UI Elements (UI 元素)
 // ============================================================
 .bar-nav-icon {
-  color: var(--nav-icon-color, rgb(var(--v-theme-drakPurple))) !important;
+  color: var(--nav-icon-color, rgb(var(--v-theme-darkPurple))) !important;
 }
 
 .mermaid-wrap {
@@ -874,10 +874,10 @@ watch(messages, async () => {
   }
 
   &:hover {
-    background: #fff;
-    border-color: #DB2627;
-    color: #DB2627;
-    box-shadow: 0 4px 16px rgba(219, 38, 39, 0.15);
+    background: rgb(var(--v-theme-surface));
+    border-color: rgb(var(--v-theme-primary));
+    color: rgb(var(--v-theme-primary));
+    box-shadow: 0 4px 16px rgba(var(--v-theme-primary), 0.15);
   }
 }
 
@@ -907,8 +907,8 @@ watch(messages, async () => {
     transition: color 0.15s ease, background 0.15s ease;
 
     &:hover {
-      background: rgba(219, 38, 39, 0.06);
-      color: #DB2627;
+      background: rgba(var(--v-theme-primary), 0.06);
+      color: rgb(var(--v-theme-primary));
     }
   }
 }
@@ -931,7 +931,7 @@ watch(messages, async () => {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #db2627;
+    background: rgb(var(--v-theme-primary));
     animation: pulse-bounce 1.4s infinite ease-in-out;
 
     @for $i from 1 through 3 {
@@ -958,32 +958,9 @@ watch(messages, async () => {
 }
 
 // ============================================================
-// 4. Theme System (統一的主題控管)
+// 4. Theme System (Component-specific dark overrides)
 // ============================================================
-:root {
-  --text-muted: #666;
-  --border-color: #DCDCDC;
-  --bot-bg: #FFF;
-  --bot-text: #333;
-  --code-bg: #EEEEEE;
-  --code-text: #000;
-  --pre-bg: #f5f5f5;
-  --pre-text: #000;
-  --nav-icon-color: rgb(var(--v-theme-drakPurple));
-}
-
 .v-theme--dark {
-  --text-muted: #aaa;
-  --border-color: #3a3d55;
-  --bot-bg: #2a2d3e;
-  --bot-text: #e0e0e0;
-  --code-bg: #3a3d50;
-  --code-text: #fff;
-  --pre-bg: #313447;
-  --pre-text: #fff;
-  --nav-icon-color: white;
-
-  // 這裡一次性處理深色模式的切換
   .chat-bg-light {
     display: none;
   }
@@ -993,7 +970,7 @@ watch(messages, async () => {
   }
 
   .mermaid-context-menu-item:hover {
-    background: #3a3d50;
+    background: var(--code-bg);
   }
 }
 

@@ -230,12 +230,12 @@ onMounted(async () => {
 }
 
 .chat-bot {
-  color: #333;
+  color: var(--bot-text);
   font-style: normal;
   font-weight: 400;
   line-height: 1.75rem;
   border-radius: 20px 20px 20px 3px;
-  background: #FFF;
+  background: var(--bot-bg);
   overflow-x: auto;
 
   .bot-content {
@@ -251,7 +251,7 @@ onMounted(async () => {
 
     hr {
       border: none;
-      border-top: 2px solid #EEEEEE;
+      border-top: 2px solid var(--border-color);
       height: 0;
       margin-top: 8px;
       margin-bottom: 8px;
@@ -275,19 +275,19 @@ onMounted(async () => {
     }
 
     pre>code {
-      background-color: #f5f5f5;
-      color: #333;
+      background-color: var(--pre-bg);
+      color: var(--pre-text);
       white-space: pre;
     }
 
     code {
-      background-color: #EEEEEE;
-      color: #333;
+      background-color: var(--code-bg);
+      color: var(--code-text);
     }
   }
 
   table {
-    border: 1px solid #D7DEF8;
+    border: 1px solid var(--border-color);
     border-collapse: collapse;
     border-spacing: 1px;
     text-align: left;
@@ -295,14 +295,14 @@ onMounted(async () => {
   }
 
   th {
-    border: 1px solid #D7DEF8;
-    background-color: #EEEEEE;
+    border: 1px solid var(--border-color);
+    background-color: var(--code-bg);
     padding: 5px;
   }
 
   td {
-    border: 1px solid #D7DEF8;
-    background-color: white;
+    border: 1px solid var(--border-color);
+    background-color: var(--bot-bg);
     padding: 5px;
   }
 
@@ -318,7 +318,7 @@ onMounted(async () => {
   font-weight: 700;
   line-height: 1.75rem;
   border-radius: 20px 20px 3px 20px;
-  background: #DB2627;
+  background: rgb(var(--v-theme-primary));
   overflow-x: auto;
 
   .user-content {
@@ -449,16 +449,16 @@ onMounted(async () => {
   }
 
   &:hover {
-    background: #fff;
-    border-color: #DB2627;
-    color: #DB2627;
-    box-shadow: 0 4px 16px rgba(219, 38, 39, 0.15);
+    background: rgb(var(--v-theme-surface));
+    border-color: rgb(var(--v-theme-primary));
+    color: rgb(var(--v-theme-primary));
+    box-shadow: 0 4px 16px rgba(var(--v-theme-primary), 0.15);
   }
 }
 
 .mermaid-context-menu {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e0e0e0;
+  background: var(--bot-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 4px;
   min-width: 0;
@@ -475,7 +475,7 @@ onMounted(async () => {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #555;
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -483,14 +483,14 @@ onMounted(async () => {
   transition: color 0.15s ease, background 0.15s ease;
 
   &:hover {
-    background: rgba(219, 38, 39, 0.06);
-    color: #DB2627;
+    background: rgba(var(--v-theme-primary), 0.06);
+    color: rgb(var(--v-theme-primary));
   }
 }
 
 .chat-footer {
   width: 100%;
-  color: #666;
+  color: var(--text-muted);
   font-size: 12px;
   font-style: normal;
   font-weight: 400;
@@ -500,46 +500,25 @@ onMounted(async () => {
   justify-content: center;
 
   .policy {
-    color: #DB2627;
+    color: rgb(var(--v-theme-primary));
     text-decoration: none;
   }
 
   .kingston {
-    color: #DB2627;
+    color: rgb(var(--v-theme-primary));
   }
 }
 
-// Dark theme overrides
+// Dark theme overrides — colors handled via CSS vars in main.scss
 .v-theme--dark {
-  .chat-bot {
-    background: #2a2d3e;
-    color: #e0e0e0;
-
-    .bot-content {
-      pre>code {
-        background-color: #313447;
-        color: #e0e0e0;
-      }
-
-      code {
-        background-color: #3a3d50;
-        color: #e0e0e0;
-      }
-    }
-  }
-
   .mermaid-context-menu {
-    background: #2a2d3e;
-    border-color: #3a3d55;
-    color: #e0e0e0;
+    background: var(--bot-bg);
+    border-color: var(--border-color);
+    color: var(--bot-text);
   }
 
   .mermaid-context-menu-item:hover {
-    background: #3a3d50;
-  }
-
-  .chat-footer {
-    color: #aaa;
+    background: var(--code-bg);
   }
 }
 

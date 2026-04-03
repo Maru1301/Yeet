@@ -377,7 +377,7 @@ onMounted(async () => {
 .prompt-header {
   display: flex;
   align-items: center;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .prompt-content {
@@ -422,7 +422,7 @@ onMounted(async () => {
 }
 
 .fav-icon {
-  color: #1565C0;
+  color: rgb(var(--v-theme-darkPrimary));
 }
 
 .fav-icon.is-favorite {
@@ -431,7 +431,7 @@ onMounted(async () => {
 
 .v-theme--dark {
   .fav-icon {
-    color: white;
+    color: var(--text-muted);
   }
 
   .fav-icon.is-favorite {
@@ -440,7 +440,7 @@ onMounted(async () => {
 }
 
 .list-section {
-  background: white !important;
+  background: var(--surface-elevated) !important;
 }
 
 
@@ -450,12 +450,12 @@ onMounted(async () => {
 }
 
 .pm-search-field input::placeholder {
-  color: #3f51b5 !important;
+  color: rgb(var(--v-theme-darkPrimary)) !important;
   opacity: 1 !important;
 }
 
 .search-icon {
-  color: #3f51b5 !important;
+  color: rgb(var(--v-theme-darkPrimary)) !important;
 }
 
 // ─── Buttons ─────────────────────────────────────────────────────────────────
@@ -473,28 +473,28 @@ onMounted(async () => {
 }
 
 .red-btn {
-  background: rgb(var(--v-theme-pink), 0.1) !important;
-  color: #DB2627 !important;
+  background: rgba(var(--v-theme-primary), 0.08) !important;
+  color: rgb(var(--v-theme-primary)) !important;
   font-weight: 600;
   letter-spacing: 1px;
   transition: background 0.2s;
 
   &:hover,
   &:focus {
-    background: rgb(var(--v-theme-pink), 0.2) !important;
+    background: rgba(var(--v-theme-primary), 0.14) !important;
   }
 }
 
 .add-btn {
-  background: rgb(var(--v-theme-pink), 0.1) !important;
-  color: #DB2627 !important;
+  background: rgba(var(--v-theme-primary), 0.08) !important;
+  color: rgb(var(--v-theme-primary)) !important;
   font-weight: 600;
   letter-spacing: 1px;
   transition: background 0.2s;
 
   &:hover,
   &:focus {
-    background: rgb(var(--v-theme-pink), 0.2) !important;
+    background: rgba(var(--v-theme-primary), 0.14) !important;
   }
 }
 
@@ -517,13 +517,13 @@ onMounted(async () => {
   }
 
   &.is-selected {
-    background-color: #C5CAE9 !important;
+    background-color: var(--list-selected-bg) !important;
   }
 
   &:hover {
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    background-color: #fce8e8 !important;
+    background-color: var(--list-hover-bg) !important;
 
     .v-icon {
       color: rgb(var(--v-theme-primary)) !important;
@@ -581,10 +581,6 @@ onMounted(async () => {
 
   .section-title {
     color: white !important;
-  }
-
-  .prompt-header {
-    border-bottom-color: #3a3d55;
   }
 
   .normal-btn {

@@ -220,7 +220,6 @@ const hoveredIndex = ref<string | null>(null);
 const conversationList = ref<Conversation[]>([]);
 const deleteDialog = ref(false);
 const selectedConversation = ref<Conversation | null>(null);
-const toggle_theme = ref<number>(1);
 
 const drawerValue = computed({
   get() {
