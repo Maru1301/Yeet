@@ -135,22 +135,44 @@ html {
   /* Create the gradient. */
   background-image: linear-gradient(90deg,
       #000000 20%,
-      #ffffff 40%,
-      #ffffff 60%,
+      #000000 40%,
+      #ffffff 50%,
+      #000000 60%,
       #000000 80%);
 
   /* Set the background size and repeat properties. */
-  background-size: 200% auto;
+  background-size: 200% auto; /* Crucial for creating a loopable background */
   background-repeat: repeat;
 
   /* Use the text as a mask for the background. */
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  -moz-background-clip: text;
-  -moz-text-fill-color: transparent;
-  animation: gradientAnimate 5s ease-in-out infinite alternate;
+  /* -moz-background-clip: text; /* Modern Firefox supports background-clip: text directly */
+  /* -moz-text-fill-color: transparent; /* Not needed for modern Firefox */
+
+  /* Apply the animation */
+  animation: gradientAnimate 6s ease-in-out infinite; /* Removed 'alternate' */
   font-size: 24px;
+  /* Add display inline-block or block if it's not naturally spanning width */
+  display: inline-block; /* or block, depending on your layout needs */
+}
+
+/* Define the keyframes for the animation */
+@keyframes gradientAnimate {
+  0% {
+    background-position: 120% 0%; /* Start at the left edge of the 200% background */
+  }
+
+  16.67% {
+    background-position: -20% 0%; /* Shift the background left by 25% of the element's width */
+                                  /* This makes the gradient pattern appear to move right */
+  }
+
+  100% {
+    background-position: -20% 0%; /* Shift the background left by 100% of the element's width */
+                                  /* This makes the gradient pattern appear to move right and loop */
+  }
 }
 
 .deep-purple-text {

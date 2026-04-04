@@ -33,7 +33,7 @@
         <div ref="chatBox"
              class="chatbox flex-grow-1 overflow-y-auto pa-4">
           <div class="mx-auto"
-               style="width: 100%; max-width: 1100px;">
+               style="width: 100%;">
             <div class="d-flex flex-column align-center">
               <div class="d-flex flex-column align-center">
                 <img class="chat-bg-img chat-bg-light"
@@ -46,8 +46,7 @@
                      alt="AI Chat" />
                 <div class="chat-title my-3 gradient-text">Hi, {{ account }}</div>
                 <div class="chat-subtitle">
-                  Discover prompt ideas by using the <span class="text-red">@</span> tag.<br />
-                  Click one of the prompts below to get started. We now offer the GPT-5 model.
+                  Ask me anything. Start a conversation below.
                 </div>
               </div>
             </div>
@@ -80,15 +79,13 @@
                 </div>
                 <div class="d-flex mb-3"
                      v-else>
-                  <img class="mr-3 flex-shrink-0"
-                       style="align-self: flex-end; margin-bottom: 32px;"
-                       width="35"
-                       height="35"
-                       :src="kingAvatar"
+                  <img class="mr-3 bot-avatar"
+                       :src="botAvatar"
                        alt="AI Chat" />
                   <div class="d-flex flex-column"
-                       style="min-width: 0">
-                    <div class="d-flex flex-column align-end chat-bot pt-2 pb-3 pr-4 pl-4">
+                       style="min-width: 0; flex: 1">
+                    <div class="d-flex flex-column align-end chat-bot pt-2 pb-3 pr-4 pl-4"
+                         :style="!message.content ? 'width: fit-content' : ''">
                       <div v-if="message.content"
                            class="bot-content"
                            v-html="message.content"></div>
@@ -108,11 +105,22 @@
                   </div>
                 </div>
               </div>
+              <div v-if="isError"
+                   class="d-flex justify-center mt-2 mb-1">
+                <v-btn variant="outlined"
+                       color="red"
+                       size="small"
+                       :ripple="false"
+                       @click="retry">
+                  Retry
+                </v-btn>
+              </div>
             </div>
+            <div v-if="isResponding" style="min-height: 60vh;"></div>
           </div>
         </div>
 
-        <div class="d-flex flex-column align-center mt-3">
+        <div class="d-flex flex-column align-center mt-3" style="width: 100%;">
           <div class="input-block">
             <div class="d-flex ml-2 mr-2 align-end">
               <Textarea ref="textareaRef"
@@ -181,7 +189,17 @@
                            :currentLen="len"
                            @listening-change="onListeningChange" />
                 <span class="text-grey">{{ `${len}/${maxLen}` }}</span>
-                <v-btn icon
+                <v-btn v-if="isResponding"
+                       icon
+                       variant="plain"
+                       color="red"
+                       :ripple="false"
+                       style="background-color: transparent;"
+                       @click="stopGeneration">
+                  <v-icon>mdi-stop</v-icon>
+                </v-btn>
+                <v-btn v-else
+                       icon
                        variant="plain"
                        color="red"
                        :ripple="false"
@@ -243,7 +261,25 @@ import AIFooter from './AI.Footer.vue';
 
 const chatBg = new URL('../assets/ChatBackground.svg', import.meta.url).href;
 const chatBg_dark = new URL('../assets/ChatBackgroundDark.svg', import.meta.url).href;
-const kingAvatar = new URL('../assets/king-avator.svg', import.meta.url).href;
+const yeetClosed = new URL('../assets/yeet.png', import.meta.url).href;
+const yeetOpen = new URL('../assets/yeet_mouth_open.png', import.meta.url).href;
+const botAvatar = ref(yeetClosed);
+let talkTimer: ReturnType<typeof setTimeout> | null = null;
+
+function startTalking() {
+  let mouthOpen = false;
+  function tick() {
+    mouthOpen = !mouthOpen;
+    botAvatar.value = mouthOpen ? yeetOpen : yeetClosed;
+    talkTimer = setTimeout(tick, 80 + Math.random() * 280);
+  }
+  tick();
+}
+
+function stopTalking() {
+  if (talkTimer) { clearTimeout(talkTimer); talkTimer = null; }
+  botAvatar.value = yeetClosed;
+}
 
 const route = useRoute();
 
@@ -273,6 +309,8 @@ const drawer = ref(true);
 const micListening = ref(false);
 const showPromptManager = ref(false);
 const snackbar = ref({ visible: false, message: '', color: 'success' });
+const lastPrompt = ref('');
+const isError = ref(false);
 
 const textDecoder = new TextDecoder('utf-8');
 
@@ -324,7 +362,7 @@ const canSend = computed(() => !isResponding.value && len.value > 0 && len.value
 
 // Watchers
 watch(messages, () => {
-  scrollDown();
+  // auto-scroll disabled
 });
 
 watch(usedModel, async (newModel, oldModel) => {
@@ -378,7 +416,9 @@ function toHtml(text: string): string {
 async function send(firstPrompt = true) {
   micButtonRef.value?.stop?.();
   const prompt = input.value.trim();
+  lastPrompt.value = prompt;
   input.value = '';
+  isError.value = false;
   messages.value = [...messages.value];
   if (!prompt) return;
 
@@ -388,6 +428,14 @@ async function send(firstPrompt = true) {
     messages.value.push(userConversation);
   }
   messages.value.push({ role: 'gpt', content: '' });
+  nextTick(() => {
+    if (!chatBox.value) return;
+    const userBubbles = chatBox.value.querySelectorAll('.chat-user');
+    if (!userBubbles.length) return;
+    const lastBubble = userBubbles[userBubbles.length - 1] as HTMLElement;
+    const row = lastBubble.closest('.d-flex.justify-end') as HTMLElement;
+    if (row) chatBox.value.scrollTop = row.offsetTop - 16;
+  });
 
   isResponding.value = true;
 
@@ -421,7 +469,6 @@ async function send(firstPrompt = true) {
           return '';
         } else {
           processChatStreamChunk(value);
-          scrollDown();
           return reader.read().then(pump);
         }
       });
@@ -470,6 +517,7 @@ function processChatStreamChunk(value: Uint8Array) {
   } else {
     text = parseStreamBuffer(buffer);
   }
+  if (text && !content.value) startTalking();
   content.value += text;
   const msg = messages.value[messages.value.length - 1];
   if (!msg) return;
@@ -497,11 +545,25 @@ function parseStreamBuffer(buffer: string): string {
 
 function handleChatStreamError(error: unknown) {
   isResponding.value = false;
+  isError.value = true;
   const msg = messages.value[messages.value.length - 1];
   if (msg) {
-    msg.content = 'An error occurred in the AI system. Please enter the conversation again or <strong>refresh the page</strong>.';
+    msg.content = 'An error occurred in the AI system.';
   }
   console.error('Chat stream error:', error);
+}
+
+async function retry() {
+  messages.value.pop();
+  isError.value = false;
+  input.value = lastPrompt.value;
+  await send(false);
+}
+
+async function stopGeneration() {
+  cancelAPI.value.abort();
+  cancelAPI.value = new AbortController();
+  await handleChatStreamEnd();
 }
 
 async function newChat() {
@@ -601,9 +663,10 @@ onMounted(async () => {
   }
 });
 
-// 串流結束時渲染 mermaid
+// 串流結束時渲染 mermaid + 停止說話動畫
 watch(isResponding, async (newVal, oldVal) => {
   if (oldVal === true && newVal === false) {
+    stopTalking();
     await nextTick();
     renderMermaidWithDownloads('.bot-content .mermaid, .user-content .mermaid');
   }
@@ -715,8 +778,8 @@ watch(messages, async () => {
 // ============================================================
 .chatbox,
 .input-block {
-  width: 50%;
-  min-width: 700px;
+  width: 80%;
+  min-width: 0;
   margin: 0 auto;
 
   @media (max-width: 960px) {
@@ -773,10 +836,19 @@ watch(messages, async () => {
   }
 }
 
+.bot-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
 .chat-bot {
   background: var(--bot-bg, #FFF);
   color: var(--bot-text, #333);
-  border-radius: 20px 20px 20px 3px;
+  border-radius: 3px 20px 20px 20px;
   min-height: 46px;
 
   .bot-content {

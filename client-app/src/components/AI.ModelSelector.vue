@@ -10,7 +10,7 @@
               pointer>
         <v-list-item link>
           <v-list-item-title class="text-h5 font-weight-bold copilot-title">
-            <span class="title-text">AI Chat</span>
+            <span class="title-text">AI Chat </span>
             <span class="gradient-text text-uppercase">
               {{ department ? department : "Workspace" }}
             </span>

@@ -4,3 +4,12 @@ dist
 *.db
 *.db-shm
 *.db-wal
+.env
+.env.*
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
+yeet
