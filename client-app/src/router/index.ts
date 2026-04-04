@@ -22,6 +22,11 @@ const routes = [
     component: () => import('../components/AI.RecordViewer.vue'),
   },
   {
+    path: '/live',
+    name: 'live',
+    component: () => import('../components/AI.LiveMode.vue'),
+  },
+  {
     path: '/browser-not-support',
     name: 'browser_not_support',
     component: () => import('../views/BrowserNotSupport.vue'),

@@ -40,6 +40,7 @@ A voice selector should be surfaced in the Live mode settings panel.
 - **History**: Live sessions are saved to conversation history and appear in the sidebar like regular chats.
 - **Transcript**: Live transcript is shown alongside audio in real time.
 - **Backend**: Go server relays the Gemini Live WebSocket — the frontend connects to Go, Go proxies to Gemini. API key stays server-side.
+- **Why relay over direct WebSocket**: Google's docs suggest a direct browser WebSocket for lowest latency, but we anticipate extending to multi-user. With multiple users, direct tokens create billing exposure, no centralised rate-limiting, and no clean auth enforcement point. The relay hop cost is negligible for voice; the control benefits are not.
 
 ### Open questions (to resolve during spec)
 

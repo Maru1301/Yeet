@@ -7,7 +7,8 @@
               @new-chat="newChat"
               @select-conversation="selectConversation"
               @delete-conversation="handleDeleteConversation"
-              @open-prompt-manager="showPromptManager = true" />
+              @open-prompt-manager="showPromptManager = true"
+              @live-mode="$router.push('/live')" />
 
     <!-- Chat Interface -->
     <v-card v-if="!showPromptManager"
@@ -84,8 +85,7 @@
                        alt="AI Chat" />
                   <div class="d-flex flex-column"
                        style="min-width: 0; flex: 1">
-                    <div class="d-flex flex-column align-end chat-bot pt-2 pb-3 pr-4 pl-4"
-                         :style="!message.content ? 'width: fit-content' : ''">
+                    <div class="d-flex flex-column align-end chat-bot pt-2 pb-3 pr-4 pl-4">
                       <div v-if="message.content"
                            class="bot-content"
                            v-html="message.content"></div>
@@ -259,8 +259,8 @@ import PromptManager from './AI.PromptManager.vue';
 import MicButton from './AI.MicButton.vue';
 import AIFooter from './AI.Footer.vue';
 
-const chatBg = new URL('../assets/ChatBackground.svg', import.meta.url).href;
-const chatBg_dark = new URL('../assets/ChatBackgroundDark.svg', import.meta.url).href;
+const chatBg = new URL('../assets/yeet_welcome.png', import.meta.url).href;
+const chatBg_dark = new URL('../assets/yeet_welcome.png', import.meta.url).href;
 const yeetClosed = new URL('../assets/yeet.png', import.meta.url).href;
 const yeetOpen = new URL('../assets/yeet_mouth_open.png', import.meta.url).href;
 const botAvatar = ref(yeetClosed);
@@ -850,6 +850,7 @@ watch(messages, async () => {
   color: var(--bot-text, #333);
   border-radius: 3px 20px 20px 20px;
   min-height: 46px;
+  width: fit-content;
 
   .bot-content {
     @include markdown-body(false);

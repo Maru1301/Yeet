@@ -59,6 +59,19 @@
           My Prompts
         </span>
       </v-list-item>
+
+      <!-- Live Mode Button -->
+      <v-list-item class="text-capitalize font-weight-medium"
+                   @click="handleLiveMode">
+        <template #prepend>
+          <v-icon class="primary-btn">
+            mdi-microphone
+          </v-icon>
+        </template>
+        <span class="btn-text">
+          Live
+        </span>
+      </v-list-item>
     </v-list>
 
     <v-divider class="mt-4"
@@ -78,7 +91,8 @@
                          :key="conversation.conversationId"
                          @click="handleSelectConversation(conversation)"
                          @mouseenter="hoveredIndex = conversation.conversationId">
-              <v-list-item-title class="text-truncate font-weight-regular">
+              <v-list-item-title class="text-truncate font-weight-regular d-flex align-center gap-1">
+                <v-icon v-if="conversation.isLive" size="13" color="primary" class="mr-1">mdi-microphone</v-icon>
                 {{ conversation.topic || 'New Conversation' }}
               </v-list-item-title>
               <template #append>
@@ -192,6 +206,7 @@ const emit = defineEmits<{
   (e: 'update:drawer', val: boolean): void;
   (e: 'new-chat'): void;
   (e: 'open-prompt-manager'): void;
+  (e: 'live-mode'): void;
   (e: 'select-conversation', conversation: any): void;
   (e: 'delete-conversation', conversation: any): void;
 }>();
@@ -208,6 +223,7 @@ interface Conversation {
   topic?: string;
   createdAt: string;
   isAgent?: boolean;
+  isLive?: boolean;
 }
 
 interface ConversationGroup {
@@ -312,6 +328,10 @@ function handleNewChat(): void {
 
 function handleOpenPromptManager(): void {
   emit('open-prompt-manager');
+}
+
+function handleLiveMode(): void {
+  emit('live-mode');
 }
 
 function handleSelectConversation(conversation: Conversation): void {

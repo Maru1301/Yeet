@@ -49,6 +49,8 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/chat': { target: 'http://localhost:8080', changeOrigin: true },
         '/agent': { target: 'http://localhost:8080', changeOrigin: true },
+        '/live/ws': { target: 'http://localhost:8080', changeOrigin: true, ws: true },
+        '/live/voices': { target: 'http://localhost:8080', changeOrigin: true },
       },
       compress: false,
     },
