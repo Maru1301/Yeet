@@ -31,6 +31,9 @@
 
       <div class="chat-bg d-flex flex-column flex-grow-1 overflow-hidden align-center"
            style="position: relative;">
+
+        <ChatOutline @navigate="navigateToMessage" />
+
         <div ref="chatBox"
              class="chatbox flex-grow-1 overflow-y-auto pa-4">
           <div class="mx-auto"
@@ -55,7 +58,8 @@
 
             <div class="mx-2">
               <div v-for="(message, index) in messages"
-                   :key="index">
+                   :key="index"
+                   :data-message-index="index">
                 <div v-if="message.role == 'user'"
                      class="d-flex justify-end align-end mb-3">
                   <div class="d-flex flex-column"
@@ -237,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAppStore } from '../store/index';
 import { gptService } from '../global/gpt.api.service';
@@ -258,6 +262,8 @@ import PromptCards from './AI.PromptCards.vue';
 import PromptManager from './AI.PromptManager.vue';
 import MicButton from './AI.MicButton.vue';
 import AIFooter from './AI.Footer.vue';
+import ChatOutline from './AI.ChatOutline.vue';
+import { useOutlineStore } from '../store/outline';
 
 const chatBg = new URL('../assets/yeet_welcome.png', import.meta.url).href;
 const chatBg_dark = new URL('../assets/yeet_welcome.png', import.meta.url).href;
@@ -311,8 +317,12 @@ const showPromptManager = ref(false);
 const snackbar = ref({ visible: false, message: '', color: 'success' });
 const lastPrompt = ref('');
 const isError = ref(false);
+const historyOffset = ref(0);
+const hasMoreHistory = ref(false);
+const isLoadingHistory = ref(false);
 
 const textDecoder = new TextDecoder('utf-8');
+const outlineStore = useOutlineStore();
 
 // markdown-it instance
 const md = (() => {
@@ -394,6 +404,31 @@ function scrollDown() {
   });
 }
 
+
+function navigateToMessage(index: number) {
+  if (!chatBox.value) return;
+  const el = chatBox.value.querySelector(`[data-message-index="${index}"]`) as HTMLElement | null;
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    outlineStore.setActiveIndex(index);
+  }
+}
+
+function updateOutlineActiveIndex() {
+  if (!outlineStore.visible || !chatBox.value) return;
+  const box = chatBox.value;
+  const mid = box.getBoundingClientRect().top + box.getBoundingClientRect().height / 2;
+  const els = box.querySelectorAll('[data-message-index]');
+  let active = 0;
+  els.forEach((el) => {
+    const rect = el.getBoundingClientRect();
+    if (rect.top <= mid) {
+      active = Number((el as HTMLElement).dataset.messageIndex ?? 0);
+    }
+  });
+  outlineStore.setActiveIndex(active);
+}
+
 function summarize() {
   input.value = SummaryPrompt;
   send(false);
@@ -426,6 +461,7 @@ async function send(firstPrompt = true) {
     const userConversation: any = { role: 'user', content: toHtml(prompt) };
     if (fileDataUri.value?.startsWith('data:image')) userConversation.image = fileDataUri.value;
     messages.value.push(userConversation);
+    outlineStore.appendEntry(prompt, 'user');
   }
   messages.value.push({ role: 'gpt', content: '' });
   nextTick(() => {
@@ -481,10 +517,15 @@ async function send(firstPrompt = true) {
 async function handleChatStreamEnd() {
   const msg = messages.value[messages.value.length - 1];
   if (!msg) return;
-  msg.content = toHtml(content.value);
-  msg.markdownContent = content.value;
+  const rawContent = content.value;
+  msg.content = toHtml(rawContent);
+  msg.markdownContent = rawContent;
   if (msg.content.includes('This request has been blocked by our content filters.')) {
     msg.content = "Your request has violated the company's content policy.";
+  }
+  // Append assistant entry to outline after response completes
+  if (rawContent) {
+    outlineStore.appendEntry(rawContent, 'assistant');
   }
   isResponding.value = false;
   content.value = '';
@@ -569,6 +610,9 @@ async function stopGeneration() {
 async function newChat() {
   chatId.value = null;
   showPromptManager.value = false;
+  hasMoreHistory.value = false;
+  historyOffset.value = 0;
+  outlineStore.$patch({ entries: [], conversationId: null, activeIndex: 0 });
   micButtonRef.value?.stop?.();
   cancelAPI.value.abort();
   cancelAPI.value = new AbortController();
@@ -608,59 +652,121 @@ async function handleDeleteConversation(deletedConversation: any) {
   }
 }
 
-async function initRecords(conversation: any) {
-  if (!conversation || !conversation.conversationId) return;
+// ── record helpers (shared by initRecords and loadMoreHistory) ────────────────
 
-  const isAgent = !!conversation.isAgent;
-  const conversationId = conversation.conversationId;
-  const buildPayload = () => isAgent ? { userId: '', conversationId } : { conversationId };
-  const mapAgentRecord = (record: any) => ({
+function mapAgentRecord(record: any) {
+  return {
     role: record.role,
     content: toHtml(record.content),
     markdownContent: record.content,
     image: '',
     timestamp: record.timestamp,
-  });
-  const isChatMessage = (record: any) => {
-    const label = record?.Role?.Label;
-    const firstItem = record?.Items?.[0];
-    return (label === 'assistant' || label === 'user') && !!firstItem?.Text;
   };
-  const toMessage = (record: any) => {
-    const items = record?.Items ?? [];
-    const firstText = items[0]?.Text ?? '';
-    const imageItem = items.find((it: any) => it?.Data && it?.MimeType);
-    const imageDataUri = imageItem ? `data:${imageItem.MimeType};base64,${imageItem.Data}` : '';
-    return {
-      role: record.Role.Label,
-      content: toHtml(firstText),
-      markdownContent: firstText,
-      image: imageDataUri,
-    };
+}
+
+function isChatMessage(record: any): boolean {
+  const label = record?.Role?.Label;
+  const firstItem = record?.Items?.[0];
+  return (label === 'assistant' || label === 'user') && !!firstItem?.Text;
+}
+
+function toMessage(record: any) {
+  const items = record?.Items ?? [];
+  const firstText = items[0]?.Text ?? '';
+  const imageItem = items.find((it: any) => it?.Data && it?.MimeType);
+  const imageDataUri = imageItem ? `data:${imageItem.MimeType};base64,${imageItem.Data}` : '';
+  return {
+    role: record.Role.Label,
+    content: toHtml(firstText),
+    markdownContent: firstText,
+    image: imageDataUri,
   };
+}
+
+// ── history loading ───────────────────────────────────────────────────────────
+
+async function initRecords(conversation: any) {
+  if (!conversation || !conversation.conversationId) return;
+
+  const isAgent = !!conversation.isAgent;
+  const conversationId = conversation.conversationId;
+
+  if (chatId.value === conversationId) return;
+
+  historyOffset.value = 0;
+  hasMoreHistory.value = false;
 
   try {
-    const api = await gptService.record.request(buildPayload(), isAgent);
+    const api = await gptService.record.request(
+      { conversationId, offset: 0, limit: 10 },
+      isAgent,
+    );
     if (isAgent && api?.data?.records) {
-      console.log('Agent Chat History:', api.data);
       messages.value = api.data.records.map(mapAgentRecord);
       chatId.value = api.data.conversationId;
-      return;
+      hasMoreHistory.value = false;
+    } else {
+      const chatHistory = api?.data?.ChatHistory ?? [];
+      messages.value = chatHistory.filter(isChatMessage).map(toMessage);
+      chatId.value = conversationId;
+      hasMoreHistory.value = api?.data?.hasMore ?? false;
+      historyOffset.value = messages.value.length;
     }
-    const chatHistory = api?.data?.ChatHistory ?? [];
-    messages.value = chatHistory.filter(isChatMessage).map(toMessage);
-    chatId.value = conversationId;
+    nextTick(() => scrollDown());
+    outlineStore.fetchEntries(conversationId);
   } catch (error) {
     console.error('Error fetching records:', error);
   }
 }
 
+async function loadMoreHistory() {
+  if (!chatId.value || isLoadingHistory.value || !hasMoreHistory.value) return;
+  isLoadingHistory.value = true;
+
+  const box = chatBox.value;
+  const prevScrollHeight = box?.scrollHeight ?? 0;
+
+  try {
+    const api = await gptService.record.request(
+      { conversationId: chatId.value, offset: historyOffset.value, limit: 10 },
+      false,
+    );
+    const older = (api?.data?.ChatHistory ?? []).filter(isChatMessage).map(toMessage);
+    if (older.length > 0) {
+      messages.value = [...older, ...messages.value];
+      historyOffset.value += older.length;
+    }
+    hasMoreHistory.value = api?.data?.hasMore ?? false;
+
+    nextTick(() => {
+      if (box) box.scrollTop = box.scrollHeight - prevScrollHeight;
+    });
+  } catch (error) {
+    console.error('Error loading more history:', error);
+  } finally {
+    isLoadingHistory.value = false;
+  }
+}
+
+function onChatBoxScroll() {
+  if (!chatBox.value) return;
+  if (hasMoreHistory.value && !isLoadingHistory.value && chatBox.value.scrollTop < 150) {
+    loadMoreHistory();
+  }
+  updateOutlineActiveIndex();
+}
+
 onMounted(async () => {
+  chatBox.value?.addEventListener('scroll', onChatBoxScroll);
   const q = route.query.q as string;
   if (q) {
     input.value = q;
     await send();
   }
+});
+
+onUnmounted(() => {
+  chatBox.value?.removeEventListener('scroll', onChatBoxScroll);
 });
 
 // 串流結束時渲染 mermaid + 停止說話動畫

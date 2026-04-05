@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -91,6 +92,7 @@ func main() {
 	mux.HandleFunc("/chat/delete-record", cors(handleDeleteRecord()))
 	mux.HandleFunc("/chat/generate-topic", cors(handleGenTopic(apiKey)))
 	mux.HandleFunc("/chat/record/", cors(handleRecord()))
+	mux.HandleFunc("/chat/outline/", cors(handleOutline()))
 	mux.HandleFunc("/agent/", cors(handleStub()))
 	mux.HandleFunc("/live/voices", cors(handleLiveVoices()))
 	mux.HandleFunc("/live/ws", handleLiveWS(apiKey))
@@ -336,13 +338,22 @@ func handleRecord() http.HandlerFunc {
 		} `json:"Items"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		// path: /chat/record/{conversationId}
+		// path: /chat/record/{conversationId}?offset=0&limit=10
 		parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
 		id := parts[len(parts)-1]
 
-		msgs, err := getMessages(id)
+		offset := 0
+		limit := 10
+		if v, err := strconv.Atoi(r.URL.Query().Get("offset")); err == nil && v >= 0 {
+			offset = v
+		}
+		if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 {
+			limit = v
+		}
+
+		msgs, hasMore, err := getMessagesPaged(id, offset, limit)
 		if err != nil {
-			log.Printf("getMessages: %v", err)
+			log.Printf("getMessagesPaged: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -359,7 +370,7 @@ func handleRecord() http.HandlerFunc {
 			}{{Text: m.Content}}
 			history = append(history, item)
 		}
-		jsonResp(w, map[string]any{"ChatHistory": history})
+		jsonResp(w, map[string]any{"ChatHistory": history, "hasMore": hasMore})
 	}
 }
 
@@ -395,7 +406,7 @@ func handleLiveWS(apiKey string) http.HandlerFunc {
 		model := r.URL.Query().Get("model")
 		voice := r.URL.Query().Get("voice")
 		if model == "" {
-			model = "gemini-2.5-flash-native-audio-preview-12-2025"
+			model = "gemini-3.1-flash-live-preview"
 		}
 		if voice == "" {
 			voice = "Aoede"
@@ -483,8 +494,9 @@ func handleLiveWS(apiKey string) http.HandlerFunc {
 					data, _ := env["data"].(string)
 					geminiMsg := map[string]any{
 						"realtimeInput": map[string]any{
-							"mediaChunks": []map[string]any{
-								{"mimeType": "audio/pcm;rate=16000", "data": data},
+							"audio": map[string]any{
+								"mimeType": "audio/pcm;rate=16000",
+								"data":     data,
 							},
 						},
 					}
@@ -639,6 +651,88 @@ func handleLiveWS(apiKey string) http.HandlerFunc {
 			"sessionId": sessionID,
 			"topic":     topic,
 		})
+	}
+}
+
+// ── Chat Outline ──────────────────────────────────────────────────────────────
+
+// deriveLabel returns the first 8 whitespace-separated words of content,
+// capped at 60 UTF-8 bytes, truncated at the last full word boundary with "…".
+// Code-fence lines are skipped. Returns "[media]" for empty/whitespace content.
+func deriveLabel(content string) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return "[media]"
+	}
+	// Skip leading code-fence: extract only lines inside the fence block
+	lines := strings.Split(content, "\n")
+	var selected []string
+	if len(lines) > 0 && (strings.HasPrefix(lines[0], "```") || strings.HasPrefix(lines[0], "~~~")) {
+		for i := 1; i < len(lines); i++ {
+			if strings.HasPrefix(lines[i], "```") || strings.HasPrefix(lines[i], "~~~") {
+				break
+			}
+			selected = append(selected, lines[i])
+		}
+	} else {
+		selected = lines
+	}
+	text := strings.TrimSpace(strings.Join(selected, " "))
+	if text == "" {
+		return "[media]"
+	}
+
+	words := strings.Fields(text)
+	if len(words) > 8 {
+		words = words[:8]
+	}
+	label := strings.Join(words, " ")
+
+	// Trim to last full word within 60 bytes
+	if len(label) > 60 {
+		trimmed := label[:60]
+		// Walk back to last space
+		for i := len(trimmed) - 1; i >= 0; i-- {
+			if trimmed[i] == ' ' {
+				trimmed = trimmed[:i]
+				break
+			}
+		}
+		return trimmed + "…"
+	}
+	return label
+}
+
+func handleOutline() http.HandlerFunc {
+	type entry struct {
+		Index int    `json:"index"`
+		Role  string `json:"role"`
+		Label string `json:"label"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
+		conversationID := parts[len(parts)-1]
+
+		msgs, err := getMessages(conversationID)
+		if err != nil {
+			log.Printf("handleOutline getMessages: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+
+		entries := make([]entry, 0, len(msgs))
+		for i, m := range msgs {
+			role := m.Role
+			if role == "model" {
+				role = "assistant"
+			}
+			entries = append(entries, entry{
+				Index: i,
+				Role:  role,
+				Label: deriveLabel(m.Content),
+			})
+		}
+		jsonResp(w, map[string]any{"entries": entries})
 	}
 }
 

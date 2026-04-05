@@ -62,8 +62,28 @@ async function copyFullPath(chatId: string): Promise<void> {
   }, 1000);
 }
 
+function stripMarkdown(md: string): string {
+  return md
+    .replace(/^#{1,6}\s+/gm, '')          // headings
+    .replace(/\*\*(.+?)\*\*/g, '$1')       // bold
+    .replace(/\*(.+?)\*/g, '$1')           // italic
+    .replace(/__(.+?)__/g, '$1')           // bold
+    .replace(/_(.+?)_/g, '$1')             // italic
+    .replace(/~~(.+?)~~/g, '$1')           // strikethrough
+    .replace(/`{3}[\s\S]*?`{3}/g, (m) =>  // fenced code blocks → plain text
+      m.replace(/^```[^\n]*\n/, '').replace(/```$/, ''))
+    .replace(/`(.+?)`/g, '$1')             // inline code
+    .replace(/^\s*[-*+]\s+/gm, '')         // unordered list markers
+    .replace(/^\s*\d+\.\s+/gm, '')         // ordered list markers
+    .replace(/^\s*>\s+/gm, '')             // blockquotes
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1')    // links → label only
+    .replace(/!\[.*?\]\(.+?\)/g, '')       // images
+    .replace(/[-]{3,}/g, '')               // horizontal rules
+    .trim();
+}
+
 async function copyContent(content: string): Promise<void> {
-  await navigator.clipboard.writeText(content);
+  await navigator.clipboard.writeText(stripMarkdown(content));
   showCopyInfo.value = true;
   setTimeout(() => {
     showCopyInfo.value = false;
