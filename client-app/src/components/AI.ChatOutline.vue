@@ -34,7 +34,7 @@ const emit = defineEmits<{
 .outline-strip {
   position: absolute;
   right: 6px;
-  top: calc(50% - 40px);
+  top: calc(50% - 72px);
   transform: translateY(-50%);
   z-index: 5;
   display: flex;
