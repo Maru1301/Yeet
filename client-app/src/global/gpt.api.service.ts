@@ -42,12 +42,14 @@ const gptService = {
     },
   },
   record: {
-    path(payload: { conversationId: string }, useAgent = false) {
-      return useAgent
-        ? `/agent/history/content`
-        : `/chat/record/${payload.conversationId}`;
+    path(payload: { conversationId: string; offset?: number; limit?: number }, useAgent = false) {
+      if (useAgent) return `/agent/history/content`;
+      const params = new URLSearchParams();
+      params.set('offset', String(payload.offset ?? 0));
+      params.set('limit', String(payload.limit ?? 10));
+      return `/chat/record/${payload.conversationId}?${params}`;
     },
-    request(payload: { conversationId: string }, useAgent = false) {
+    request(payload: { conversationId: string; offset?: number; limit?: number }, useAgent = false) {
       if (useAgent) {
         return aiRequest.post(this.path(payload, true), payload);
       } else {
@@ -79,6 +81,14 @@ const gptService = {
         signal,
         body: JSON.stringify(payload),
       });
+    },
+  },
+  outline: {
+    path(conversationId: string) {
+      return `/chat/outline/${conversationId}`;
+    },
+    request(conversationId: string) {
+      return aiRequest.post(this.path(conversationId), null);
     },
   },
 };

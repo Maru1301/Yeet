@@ -35,14 +35,19 @@ const props = defineProps<{
 
 const transcriptEl = ref<HTMLElement | null>(null);
 
-watch(
-  () => props.transcript.length,
-  async () => {
-    await nextTick();
-    if (transcriptEl.value) {
-      transcriptEl.value.scrollTop = transcriptEl.value.scrollHeight;
-    }
+async function scrollToBottom() {
+  await nextTick();
+  if (transcriptEl.value) {
+    transcriptEl.value.scrollTop = transcriptEl.value.scrollHeight;
   }
+}
+
+watch(
+  () => {
+    const last = props.transcript[props.transcript.length - 1];
+    return last ? `${props.transcript.length}:${last.text}` : '';
+  },
+  scrollToBottom
 );
 </script>
 

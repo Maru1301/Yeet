@@ -1,10 +1,13 @@
 <template>
-  <v-navigation-drawer v-model="drawerValue"
+  <v-navigation-drawer :rail="!drawerValue"
+                       :rail-width="56"
                        width="270"
                        class="pt-3 left-menu sideBar elevation-0"
-                       permanent>
-    <!-- Logo -->
-    <div class="d-flex align-center px-3 py-4">
+                       permanent
+                       :mobile-breakpoint="0">
+    <!-- Logo row (expanded only) -->
+    <div v-show="textVisible"
+         class="d-flex align-center px-3 py-4">
       <img class="chat-bg-img chat-bg-light"
            :src="aiMenuLogo"
            style="width:32px;height:32px;border-radius:8px;"
@@ -13,72 +16,68 @@
            :src="aiMenuLogoDark"
            style="width:32px;height:32px;border-radius:8px;"
            alt="AI_Menu" />
-
-
       <v-spacer />
-
-      <!-- Theme Toggle -->
-      <div class="theme-switch"
-           @click="toggleTheme()">
+      <div class="theme-switch" @click="toggleTheme()">
         <div class="switch-sun">
-          <v-icon size="15"
-                  class="switch-icon switch-icon-sun">mdi-white-balance-sunny</v-icon>
+          <v-icon size="15" class="switch-icon switch-icon-sun">mdi-white-balance-sunny</v-icon>
         </div>
         <div class="switch-moon">
-          <v-icon size="15"
-                  class="switch-icon switch-icon-moon">mdi-moon-waning-crescent</v-icon>
+          <v-icon size="15" class="switch-icon switch-icon-moon">mdi-moon-waning-crescent</v-icon>
         </div>
       </div>
     </div>
 
-    <!-- New Chat Button -->
-    <v-list nav
-            density="compact"
-            class="pa-0 pl-2">
-      <v-list-item class="text-capitalize font-weight-medium"
-                   @click="handleNewChat">
-        <template #prepend>
-          <v-icon class="primary-btn">
-            mdi-chat-plus
-          </v-icon>
+    <!-- Action Buttons -->
+    <v-list nav  class="pa-0">
+      <v-tooltip location="right" :disabled="drawerValue" text="New Chat">
+        <template #activator="{ props: tip }">
+          <v-list-item v-bind="tip"
+                       class="text-capitalize font-weight-medium"
+                       min-height="56"
+                       @click="handleNewChat">
+            <template #prepend>
+              <v-icon class="primary-btn">mdi-chat-plus</v-icon>
+            </template>
+            <span class="btn-text">New Chat</span>
+          </v-list-item>
         </template>
-        <span class="btn-text">
-          New Chat
-        </span>
-      </v-list-item>
+      </v-tooltip>
 
-      <!-- My Prompts Button -->
-      <v-list-item class="text-capitalize font-weight-medium"
-                   @click="handleOpenPromptManager">
-        <template #prepend>
-          <v-icon class="primary-btn">
-            mdi-bookmark
-          </v-icon>
+      <v-tooltip location="right" :disabled="drawerValue" text="My Prompts">
+        <template #activator="{ props: tip }">
+          <v-list-item v-bind="tip"
+                       class="text-capitalize font-weight-medium"
+                       min-height="56"
+                       @click="handleOpenPromptManager">
+            <template #prepend>
+              <v-icon class="primary-btn">mdi-bookmark</v-icon>
+            </template>
+            <span class="btn-text">My Prompts</span>
+          </v-list-item>
         </template>
-        <span class="btn-text">
-          My Prompts
-        </span>
-      </v-list-item>
+      </v-tooltip>
 
-      <!-- Live Mode Button -->
-      <v-list-item class="text-capitalize font-weight-medium"
-                   @click="handleLiveMode">
-        <template #prepend>
-          <v-icon class="primary-btn">
-            mdi-microphone
-          </v-icon>
+      <v-tooltip location="right" :disabled="drawerValue" text="Live">
+        <template #activator="{ props: tip }">
+          <v-list-item v-bind="tip"
+                       class="text-capitalize font-weight-medium"
+                       min-height="56"
+                       @click="handleLiveMode">
+            <template #prepend>
+              <v-icon class="primary-btn">mdi-microphone</v-icon>
+            </template>
+            <span class="btn-text">Live</span>
+          </v-list-item>
         </template>
-        <span class="btn-text">
-          Live
-        </span>
-      </v-list-item>
+      </v-tooltip>
     </v-list>
 
-    <v-divider class="mt-4"
+    <v-divider v-show="textVisible"
+               class="mt-4"
                gradient />
 
     <!-- Chat List -->
-    <div class="chat-list-scroll ml-1">
+    <div v-if="drawerValue" class="chat-list-scroll ml-1">
       <div v-if="conversationList.length > 0">
         <div v-for="group in groupedConversations"
              :key="group.dateLabel">
@@ -151,6 +150,17 @@
           </v-list-item-title>
         </v-list-item>
       </v-list>
+    </div>
+
+    <!-- Theme toggle at bottom (rail only) -->
+    <div v-show="!drawerValue" class="rail-theme-bottom">
+      <v-tooltip location="right" text="Toggle theme">
+        <template #activator="{ props: tip }">
+          <v-btn v-bind="tip" icon variant="text" size="small" @click="toggleTheme()">
+            <v-icon class="primary-btn">mdi-theme-light-dark</v-icon>
+          </v-btn>
+        </template>
+      </v-tooltip>
     </div>
 
     <!-- Delete Confirmation Dialog -->
@@ -237,6 +247,9 @@ const conversationList = ref<Conversation[]>([]);
 const deleteDialog = ref(false);
 const selectedConversation = ref<Conversation | null>(null);
 
+// Controls logo row / divider visibility. Text spans use CSS transitions instead.
+const textVisible = ref(true);
+
 const drawerValue = computed({
   get() {
     return props.drawer;
@@ -244,6 +257,10 @@ const drawerValue = computed({
   set(value: boolean) {
     emit('update:drawer', value);
   },
+});
+
+watch(drawerValue, (expanded) => {
+  textVisible.value = expanded;
 });
 
 const groupedConversations = computed<ConversationGroup[]>(() => {
@@ -403,6 +420,35 @@ defineExpose({ initConversationList });
   width: 0 !important;
   height: 0 !important;
   display: none !important;
+}
+
+// Keep action-button icons at a fixed x position and consistent height in both
+// expanded and rail modes. Vuetify's rail mode resets padding/justify; this overrides that.
+.left-menu .v-list--nav .v-list-item {
+  padding-inline-start: 16px !important;
+  justify-content: flex-start !important;
+  // min-height: 44px !important;
+}
+
+// Button labels: fade in during expand, disappear instantly on collapse.
+// Driven by Vuetify's .v-navigation-drawer--rail class which is toggled immediately.
+.left-menu .btn-text {
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 160ms ease 80ms; // start fading in 80ms into the expand
+}
+.left-menu.v-navigation-drawer--rail .btn-text {
+  opacity: 0;
+  transition: none; // collapse: hide instantly, no animation
+}
+
+// Pin the rail-only theme toggle to the bottom of the flex column.
+.rail-theme-bottom {
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  padding-bottom: 16px;
 }
 
 .left-menu .v-navigation-drawer__content {

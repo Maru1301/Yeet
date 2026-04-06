@@ -198,7 +198,7 @@ async function startSession() {
   liveStore.reset();
   liveStore.setStatus('connecting');
 
-  ws = liveApiService.connect('gemini-2.5-flash-native-audio-preview-12-2025', liveStore.voice);
+  ws = liveApiService.connect('gemini-3.1-flash-live-preview', liveStore.voice);
 
   ws.onmessage = async (event: MessageEvent) => {
     let msg: ServerMessage;

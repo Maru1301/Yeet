@@ -108,6 +108,39 @@ func getMessages(conversationID string) ([]message, error) {
 	return msgs, rows.Err()
 }
 
+// getMessagesPaged returns up to limit messages ending at the tail of the
+// conversation, skipping offset messages from the end. Messages are returned
+// in chronological order. hasMore is true when older messages still exist.
+func getMessagesPaged(conversationID string, offset, limit int) ([]message, bool, error) {
+	var total int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM messages WHERE conversation_id = ?`, conversationID,
+	).Scan(&total); err != nil {
+		return nil, false, err
+	}
+	rows, err := db.Query(`
+		SELECT role, content FROM (
+			SELECT id, role, content FROM messages
+			WHERE conversation_id = ?
+			ORDER BY id DESC LIMIT ? OFFSET ?
+		) ORDER BY id ASC`,
+		conversationID, limit, offset,
+	)
+	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+	var msgs []message
+	for rows.Next() {
+		var m message
+		if err := rows.Scan(&m.Role, &m.Content); err != nil {
+			return nil, false, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, total > offset+limit, rows.Err()
+}
+
 func appendMessage(conversationID, role, content string) error {
 	_, err := db.Exec(
 		`INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)`,
