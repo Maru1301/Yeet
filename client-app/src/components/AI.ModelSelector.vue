@@ -17,7 +17,7 @@
           </v-list-item-title>
 
           <v-list-item-subtitle class="d-flex subtitleGPT opacity-100">
-            <span class="text-red-darken-2 font-weight-medium">
+            <span class="text-primary font-weight-medium">
               {{ usedModel.displayName || usedModel.name }}
             </span>
           </v-list-item-subtitle>

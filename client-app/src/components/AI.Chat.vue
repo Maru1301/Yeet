@@ -820,22 +820,22 @@ watch(messages, async () => {
     border: none;
     height: 0;
     margin: 8px 0;
-    border-top: 2px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: #EEEEEE);
+    border-top: 2px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--border-color));
   }
 
   table {
     border-collapse: collapse;
     width: auto;
-    border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: #D7DEF8);
+    border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--border-color));
 
     th,
     td {
-      border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: #D7DEF8);
+      border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--border-color));
       padding: 5px;
     }
 
     th {
-      background-color: if(sass($is-user): transparent; else: #EEEEEE);
+      background-color: if(sass($is-user): transparent; else: var(--code-bg));
     }
 
     td {
@@ -844,8 +844,9 @@ watch(messages, async () => {
   }
 
   code {
-    border-radius: 4px;
-    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    padding: 2px 5px;
+    font-size: 0.875rem;
     background-color: if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--code-bg, #EEEEEE));
     color: if(sass($is-user): #FFF; else: var(--code-text, #ffffff));
   }
@@ -857,7 +858,8 @@ watch(messages, async () => {
 
     >code {
       display: block;
-      padding: 12px;
+      padding: 12px 16px;
+      font-size: 0.875rem;
       background-color: if(sass($is-user): rgba(255, 255, 255, 0.9); else: var(--pre-bg, #f5f5f5));
       color: if(sass($is-user): #000000; else: var(--pre-text, #ffffff));
     }
@@ -906,7 +908,7 @@ watch(messages, async () => {
 }
 
 .input-block {
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   background: rgba(var(--v-theme-surface)) !important;
   border: 1px solid var(--border-color, #DCDCDC);
 
@@ -924,7 +926,7 @@ watch(messages, async () => {
       }
 
       .v-icon {
-        color: #666;
+        color: var(--text-muted);
       }
     }
   }
@@ -933,7 +935,7 @@ watch(messages, async () => {
 .chat-bot,
 .chat-user {
   font-style: normal;
-  line-height: 1.75rem;
+  line-height: 1.65;
   max-width: 700px;
   min-width: 0;
 
@@ -954,7 +956,8 @@ watch(messages, async () => {
 .chat-bot {
   background: var(--bot-bg, #FFF);
   color: var(--bot-text, #333);
-  border-radius: 3px 20px 20px 20px;
+  border-radius: 3px var(--radius-md) var(--radius-md) var(--radius-md);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   min-height: 46px;
   width: fit-content;
 
@@ -971,7 +974,8 @@ watch(messages, async () => {
   background: rgb(var(--v-theme-primary));
   color: #FFF;
   font-weight: 700;
-  border-radius: 20px 20px 3px 20px;
+  border-radius: var(--radius-md) var(--radius-md) 3px var(--radius-md);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
   min-height: 32px;
 
   .user-content {
@@ -994,7 +998,7 @@ watch(messages, async () => {
 
   .policy,
   .kingston {
-    color: #DB2627;
+    color: rgb(var(--v-theme-primary));
     text-decoration: none;
   }
 }
@@ -1031,12 +1035,12 @@ watch(messages, async () => {
   align-items: center;
   gap: 5px;
   padding: 5px 10px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 500;
-  color: #555;
+  color: var(--text-muted);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -1061,9 +1065,9 @@ watch(messages, async () => {
 }
 
 .mermaid-context-menu {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   padding: 4px;
   min-width: 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -1076,9 +1080,9 @@ watch(messages, async () => {
     width: 100%;
     padding: 5px 10px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: #555;
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 500;
     white-space: nowrap;

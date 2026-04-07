@@ -3,39 +3,45 @@ import 'vuetify/styles';
 
 // Component/directive auto-import is handled by vite-plugin-vuetify in vite.config.ts
 
+// Utility colors shared by both themes (success, warning, error, functional accents)
 const sharedColors = {
-  primary: '#EA0428',   // $Kingston_GenerativeAI_Red
-  secondary: '#3E64FF', // $KingstonGenerativeAI_Blue
-  accent: '#FF8A80',    // $Kingston_Pink
-  error: '#FF2F30',     // $Kingston_LightRed
-  info: '#020457',      // $KingstonGenerativeAI_DarkBlue
-  success: '#00C097',   // $Kingston_Green
-  warning: '#E0B300',   // $Kingston_Gold
-  pink: '#E37DA2',
-  blue: '#817DE6',
-  purple: '#C57FE5',
-  lightBlue: '#A2A2D4',
-  darkPurple: '#3F365D',
+  success:    '#10B981',  // emerald-500
+  warning:    '#F59E0B',  // amber-400
+  error:      '#EF4444',  // red-500
+  info:       '#6366F1',  // indigo-500
+  pink:       '#F472B6',  // pink-400
+  blue:       '#818CF8',  // indigo-400
+  purple:     '#C084FC',  // purple-400
+  lightBlue:  '#93C5FD',  // blue-300
+  darkPurple: '#4C1D95',  // violet-900
 };
 
+// Warm palette — light mode (amber / terracotta)
 const lightColors = {
-  background: '#EAEEF3',
-  surface: '#fff',
-  sideBar: '#A2A2D4',
-  darkPrimary: '#585DAC',
-  inputBtn: '#F7F8FE',
-  backBtn: '#212121',
-  listItemBg: '#F7F8FE',
+  primary:     '#C2410C',  // terracotta (orange-700)
+  secondary:   '#92400E',  // deep amber brown (amber-800)
+  accent:      '#FB923C',  // soft orange (orange-400)
+  background:  '#F7F3ED',  // warm off-white
+  surface:     '#FFFBF5',  // warm paper
+  sideBar:     '#E8DFD2',  // warm sand
+  darkPrimary: '#9A3412',  // deep terracotta (orange-800)
+  inputBtn:    '#FEF3E8',  // warm tint
+  backBtn:     '#212121',
+  listItemBg:  '#FEF3E8',
 };
 
+// Cool palette — dark mode (cyan / teal)
 const darkColors = {
-  background: '#1a1b2e',
-  surface: '#22243a',
-  sideBar: '#272727',
-  darkPrimary: '#DB2627',
-  inputBtn: '#2e3048',
-  backBtn: '#FAFAFA',
-  listItemBg: '#353B46',
+  primary:     '#06B6D4',  // cyan-500
+  secondary:   '#0EA5E9',  // sky-500
+  accent:      '#67E8F9',  // cyan-300
+  background:  '#0F1923',  // deep cool navy
+  surface:     '#162032',  // slightly lighter navy
+  sideBar:     '#1A2D40',  // cool panel
+  darkPrimary: '#38BDF8',  // sky-400
+  inputBtn:    '#1E3044',  // cool tinted
+  backBtn:     '#FAFAFA',
+  listItemBg:  '#1E3044',
 };
 
 export default createVuetify({
@@ -45,13 +51,13 @@ export default createVuetify({
       light: {
         colors: {
           ...lightColors,
-          ...sharedColors
+          ...sharedColors,
         },
       },
       dark: {
         colors: {
           ...darkColors,
-          ...sharedColors
+          ...sharedColors,
         },
       },
     },

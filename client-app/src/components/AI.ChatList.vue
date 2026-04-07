@@ -105,7 +105,7 @@
                   <template v-slot:activator="{ props: menuProps }">
                     <v-btn icon
                            variant="flat"
-                           color="rgba(162,162,212, 0)"
+                           color="transparent"
                            style="width: 28px; height: 28px; min-width: 28px;"
                            v-bind="menuProps">
                       <v-icon size="24"
@@ -535,11 +535,11 @@ defineExpose({ initConversationList });
   }
 
   .switch-sun {
-    background: #3F51B5;
+    background: rgb(var(--v-theme-primary));
   }
 
   .switch-moon {
-    background: #C5CAE9;
+    background: rgba(var(--v-theme-sideBar), 0.5);
   }
 }
 
@@ -558,14 +558,14 @@ defineExpose({ initConversationList });
   }
 
   .theme-switch {
-    background: #5c5f7a;
+    background: rgb(var(--v-theme-sideBar));
 
     .switch-sun {
-      background: #272727;
+      background: rgb(var(--v-theme-background));
     }
 
     .switch-moon {
-      background: #3F51B5;
+      background: rgb(var(--v-theme-primary));
     }
   }
 }
