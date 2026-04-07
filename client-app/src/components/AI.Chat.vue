@@ -769,12 +769,45 @@ onUnmounted(() => {
   chatBox.value?.removeEventListener('scroll', onChatBoxScroll);
 });
 
+const COPY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
+const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;
+
+function bindCodeCopyButtons(querySelector: string): void {
+  document.querySelectorAll(querySelector).forEach(container => {
+    container.querySelectorAll<HTMLElement>('pre').forEach(pre => {
+      if (pre.dataset.copyBound === 'true') return;
+      pre.dataset.copyBound = 'true';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'code-copy-btn';
+      btn.setAttribute('aria-label', 'Copy code');
+      btn.innerHTML = COPY_ICON;
+
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const text = pre.querySelector('code')?.textContent ?? '';
+        await navigator.clipboard.writeText(text);
+        btn.innerHTML = CHECK_ICON;
+        btn.classList.add('code-copy-btn--copied');
+        setTimeout(() => {
+          btn.innerHTML = COPY_ICON;
+          btn.classList.remove('code-copy-btn--copied');
+        }, 2000);
+      });
+
+      pre.appendChild(btn);
+    });
+  });
+}
+
 // 串流結束時渲染 mermaid + 停止說話動畫
 watch(isResponding, async (newVal, oldVal) => {
   if (oldVal === true && newVal === false) {
     stopTalking();
     await nextTick();
     renderMermaidWithDownloads('.bot-content .mermaid, .user-content .mermaid');
+    bindCodeCopyButtons('.bot-content, .user-content');
   }
 });
 
@@ -782,6 +815,7 @@ watch(isResponding, async (newVal, oldVal) => {
 watch(messages, async () => {
   await nextTick();
   renderMermaidWithDownloads('.bot-content .mermaid, .user-content .mermaid');
+  bindCodeCopyButtons('.bot-content, .user-content');
 }, { flush: 'post' });
 </script>
 
@@ -1102,6 +1136,43 @@ watch(messages, async () => {
 
 .flex-1-1-0 {
   flex: 1 1 0;
+}
+
+// Code copy button
+pre {
+  position: relative;
+
+  .code-copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      background: rgba(var(--v-theme-primary), 0.1);
+      color: rgb(var(--v-theme-primary));
+    }
+
+    &--copied {
+      color: rgb(var(--v-theme-success));
+    }
+  }
+
+  &:hover .code-copy-btn {
+    opacity: 1;
+  }
 }
 
 // PulseLoader
