@@ -1,21 +1,21 @@
-// Colors
-$Kingston_White: white;
-$Kingston_White50: rgba(255, 255, 255, 0.5);
-$Kingston_Black: rgba(0, 0, 0, 0.87);
-$Kingston_Black54: rgba(0, 0, 0, 0.54);
-$Kingston_LightGray: rgba(0, 0, 0, 0.38);
-$Kingston_LightBg: #EEEEEE;
-$Kingston_Red: #DB2627;
-$Kingston_Pink: #FF8A80;
-$Kingston_Green: #00C097;
-$Kingston_DarkGreen: #26A69A;
-$Kingston_Gold: #E0B300;
-$Kingston_LightRed: #FF2F30;
+// Colors — semantic names (replaces $Kingston_* enterprise variables)
+$color-white: white;
+$color-white-50: rgba(255, 255, 255, 0.5);
+$color-text-primary: rgba(0, 0, 0, 0.87);
+$color-text-secondary: rgba(0, 0, 0, 0.54);
+$color-text-muted: rgba(0, 0, 0, 0.38);
+$color-surface-muted: #EEEEEE;
+$color-danger: #EF4444;
+$color-accent-pink: #F472B6;
+$color-success: #10B981;
+$color-success-dark: #059669;
+$color-warning: #F59E0B;
+$color-error: #EF4444;
 
-$Kingston_GenerativeAI_Primary: #EA0428;
-$Kingston_GenerativeAI_Secondary: #3E64FF;
-$Kingston_GenerativeAI_DarkBg: #020457;
-$Kingston_GenerativeAI_LightBg: #D7DEF8;
+$color-primary: #C2410C;      // warm light primary (terracotta)
+$color-secondary: #0EA5E9;    // cool dark secondary (sky)
+$color-dark-bg: #0F1923;      // dark mode background
+$color-light-bg: #F7F3ED;     // light mode background
 
 // Device width
 $sm: 600px;

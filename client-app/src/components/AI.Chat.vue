@@ -61,7 +61,13 @@
                    :key="index"
                    :data-message-index="index">
                 <div v-if="message.role == 'user'"
-                     class="d-flex justify-end align-end mb-3">
+                     class="d-flex justify-end align-end mb-3 user-msg-row">
+                  <div v-if="message.content"
+                       class="user-actions-wrap">
+                    <ChatActions :chatId="chatId!"
+                                 :message="message"
+                                 :useAgent="useAgent" />
+                  </div>
                   <div class="d-flex flex-column"
                        style="min-width: 0">
                     <div class="d-flex flex-column align-end chat-user pt-2 pb-2 pr-4 pl-4">
@@ -73,12 +79,6 @@
                            alt="User's Image"
                            class="mt-2"
                            style="max-width: 100%; border-radius: 12px;">
-                    </div>
-                    <div v-if="message.content"
-                         class="d-flex justify-end mt-1">
-                      <ChatActions :chatId="chatId!"
-                                   :message="message"
-                                   :useAgent="useAgent" />
                     </div>
                   </div>
                 </div>
@@ -769,12 +769,45 @@ onUnmounted(() => {
   chatBox.value?.removeEventListener('scroll', onChatBoxScroll);
 });
 
+const COPY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
+const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;
+
+function bindCodeCopyButtons(querySelector: string): void {
+  document.querySelectorAll(querySelector).forEach(container => {
+    container.querySelectorAll<HTMLElement>('pre').forEach(pre => {
+      if (pre.dataset.copyBound === 'true') return;
+      pre.dataset.copyBound = 'true';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'code-copy-btn';
+      btn.setAttribute('aria-label', 'Copy code');
+      btn.innerHTML = COPY_ICON;
+
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const text = pre.querySelector('code')?.textContent ?? '';
+        await navigator.clipboard.writeText(text);
+        btn.innerHTML = CHECK_ICON;
+        btn.classList.add('code-copy-btn--copied');
+        setTimeout(() => {
+          btn.innerHTML = COPY_ICON;
+          btn.classList.remove('code-copy-btn--copied');
+        }, 2000);
+      });
+
+      pre.appendChild(btn);
+    });
+  });
+}
+
 // 串流結束時渲染 mermaid + 停止說話動畫
 watch(isResponding, async (newVal, oldVal) => {
   if (oldVal === true && newVal === false) {
     stopTalking();
     await nextTick();
     renderMermaidWithDownloads('.bot-content .mermaid, .user-content .mermaid');
+    bindCodeCopyButtons('.bot-content, .user-content');
   }
 });
 
@@ -782,6 +815,7 @@ watch(isResponding, async (newVal, oldVal) => {
 watch(messages, async () => {
   await nextTick();
   renderMermaidWithDownloads('.bot-content .mermaid, .user-content .mermaid');
+  bindCodeCopyButtons('.bot-content, .user-content');
 }, { flush: 'post' });
 </script>
 
@@ -820,22 +854,22 @@ watch(messages, async () => {
     border: none;
     height: 0;
     margin: 8px 0;
-    border-top: 2px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: #EEEEEE);
+    border-top: 2px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--border-color));
   }
 
   table {
     border-collapse: collapse;
     width: auto;
-    border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: #D7DEF8);
+    border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--border-color));
 
     th,
     td {
-      border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: #D7DEF8);
+      border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--border-color));
       padding: 5px;
     }
 
     th {
-      background-color: if(sass($is-user): transparent; else: #EEEEEE);
+      background-color: if(sass($is-user): transparent; else: var(--code-bg));
     }
 
     td {
@@ -844,8 +878,9 @@ watch(messages, async () => {
   }
 
   code {
-    border-radius: 4px;
-    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    padding: 2px 5px;
+    font-size: 0.875rem;
     background-color: if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--code-bg, #EEEEEE));
     color: if(sass($is-user): #FFF; else: var(--code-text, #ffffff));
   }
@@ -857,7 +892,8 @@ watch(messages, async () => {
 
     >code {
       display: block;
-      padding: 12px;
+      padding: 12px 16px;
+      font-size: 0.875rem;
       background-color: if(sass($is-user): rgba(255, 255, 255, 0.9); else: var(--pre-bg, #f5f5f5));
       color: if(sass($is-user): #000000; else: var(--pre-text, #ffffff));
     }
@@ -906,7 +942,7 @@ watch(messages, async () => {
 }
 
 .input-block {
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   background: rgba(var(--v-theme-surface)) !important;
   border: 1px solid var(--border-color, #DCDCDC);
 
@@ -924,7 +960,7 @@ watch(messages, async () => {
       }
 
       .v-icon {
-        color: #666;
+        color: var(--text-muted);
       }
     }
   }
@@ -933,7 +969,7 @@ watch(messages, async () => {
 .chat-bot,
 .chat-user {
   font-style: normal;
-  line-height: 1.75rem;
+  line-height: 1.65;
   max-width: 700px;
   min-width: 0;
 
@@ -954,7 +990,8 @@ watch(messages, async () => {
 .chat-bot {
   background: var(--bot-bg, #FFF);
   color: var(--bot-text, #333);
-  border-radius: 3px 20px 20px 20px;
+  border-radius: 3px var(--radius-md) var(--radius-md) var(--radius-md);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   min-height: 46px;
   width: fit-content;
 
@@ -971,7 +1008,8 @@ watch(messages, async () => {
   background: rgb(var(--v-theme-primary));
   color: #FFF;
   font-weight: 700;
-  border-radius: 20px 20px 3px 20px;
+  border-radius: var(--radius-md) var(--radius-md) 3px var(--radius-md);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
   min-height: 32px;
 
   .user-content {
@@ -980,6 +1018,20 @@ watch(messages, async () => {
 
   a {
     color: #FFF !important;
+  }
+}
+
+.user-msg-row {
+  .user-actions-wrap {
+    flex-shrink: 0;
+    align-self: center;
+    margin-right: 6px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  &:hover .user-actions-wrap {
+    opacity: 1;
   }
 }
 
@@ -994,7 +1046,7 @@ watch(messages, async () => {
 
   .policy,
   .kingston {
-    color: #DB2627;
+    color: rgb(var(--v-theme-primary));
     text-decoration: none;
   }
 }
@@ -1031,12 +1083,12 @@ watch(messages, async () => {
   align-items: center;
   gap: 5px;
   padding: 5px 10px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 500;
-  color: #555;
+  color: var(--text-muted);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -1061,9 +1113,9 @@ watch(messages, async () => {
 }
 
 .mermaid-context-menu {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   padding: 4px;
   min-width: 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -1076,9 +1128,9 @@ watch(messages, async () => {
     width: 100%;
     padding: 5px 10px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: #555;
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
@@ -1098,6 +1150,43 @@ watch(messages, async () => {
 
 .flex-1-1-0 {
   flex: 1 1 0;
+}
+
+// Code copy button
+pre {
+  position: relative;
+
+  .code-copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      background: rgba(var(--v-theme-primary), 0.1);
+      color: rgb(var(--v-theme-primary));
+    }
+
+    &--copied {
+      color: rgb(var(--v-theme-success));
+    }
+  }
+
+  &:hover .code-copy-btn {
+    opacity: 1;
+  }
 }
 
 // PulseLoader

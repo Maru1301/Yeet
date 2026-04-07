@@ -39,10 +39,10 @@ onMounted(() => {
 @use '../styles/variables' as *;
 
 .browserNotSupport.v-application {
-  background-color: $Kingston_GenerativeAI_DarkBg;
+  background-color: $color-dark-bg;
 
   .mainTitle {
-    color: $Kingston_White;
+    color: $color-white;
     font-weight: bold;
     font-size: 36px;
     margin-top: 150px;
@@ -50,7 +50,7 @@ onMounted(() => {
   }
 
   .mainDetail {
-    color: $Kingston_White;
+    color: $color-white;
     font-size: 26px;
     margin-bottom: 50px;
   }

@@ -4,7 +4,8 @@
                :open-on-hover="false"
                location="bottom">
       <template v-slot:activator="{ props: tooltipProps }">
-        <v-btn v-bind="tooltipProps"
+        <v-btn v-if="!hideShare"
+               v-bind="tooltipProps"
                icon
                density="compact"
                variant="flat"
@@ -41,6 +42,7 @@ const props = defineProps<{
   department?: string;
   message: { markdownContent: string; };
   useAgent?: boolean;
+  hideShare?: boolean;
 }>();
 
 const showShareInfo = ref(false);
