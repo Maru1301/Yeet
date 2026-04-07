@@ -34,10 +34,10 @@ function goHomePath() {
   position: relative;
   width: 100%;
   height: 100vh;
-  background-color: $Kingston_GenerativeAI_DarkBg;
+  background-color: $color-dark-bg;
   overflow: hidden;
   @media screen and (min-width: $lg) {
-    background: $Kingston_GenerativeAI_DarkBg;
+    background: $color-dark-bg;
   }
 
   .logoWrap {
@@ -63,7 +63,7 @@ function goHomePath() {
       margin-left: 10px;
       margin-top: 3px;
       font-size: 24px;
-      color: $Kingston_White;
+      color: $color-white;
     }
   }
 
@@ -102,7 +102,7 @@ function goHomePath() {
 
       .description {
         font-size: 18px;
-        color: $Kingston_White;
+        color: $color-white;
         text-align: center;
         font-weight: bold;
         margin-bottom: 20px;
@@ -111,7 +111,7 @@ function goHomePath() {
       .homeBtn {
         height: 60px;
         border-radius: 30px;
-        background: $Kingston_GenerativeAI_Secondary;
+        background: $color-secondary;
       }
     }
   }

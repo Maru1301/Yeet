@@ -12,7 +12,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/gorilla/websocket"
 )
 
 //go:embed all:client-app/dist
@@ -88,7 +92,10 @@ func main() {
 	mux.HandleFunc("/chat/delete-record", cors(handleDeleteRecord()))
 	mux.HandleFunc("/chat/generate-topic", cors(handleGenTopic(apiKey)))
 	mux.HandleFunc("/chat/record/", cors(handleRecord()))
+	mux.HandleFunc("/chat/outline/", cors(handleOutline()))
 	mux.HandleFunc("/agent/", cors(handleStub()))
+	mux.HandleFunc("/live/voices", cors(handleLiveVoices()))
+	mux.HandleFunc("/live/ws", handleLiveWS(apiKey))
 	mux.HandleFunc("/", handleStatic())
 
 	log.Printf("listening on :%s", port)
@@ -263,6 +270,7 @@ func handleConversationList() http.HandlerFunc {
 		Topic          string `json:"topic"`
 		CreatedAt      string `json:"createdAt"`
 		IsAgent        bool   `json:"isAgent"`
+		IsLive         bool   `json:"isLive"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		convs, err := listConversations()
@@ -277,6 +285,7 @@ func handleConversationList() http.HandlerFunc {
 				ConversationID: c.ID,
 				Topic:          c.Topic,
 				CreatedAt:      c.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+				IsLive:         c.IsLive,
 			}
 		}
 		jsonResp(w, items)
@@ -329,13 +338,22 @@ func handleRecord() http.HandlerFunc {
 		} `json:"Items"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		// path: /chat/record/{conversationId}
+		// path: /chat/record/{conversationId}?offset=0&limit=10
 		parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
 		id := parts[len(parts)-1]
 
-		msgs, err := getMessages(id)
+		offset := 0
+		limit := 10
+		if v, err := strconv.Atoi(r.URL.Query().Get("offset")); err == nil && v >= 0 {
+			offset = v
+		}
+		if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 {
+			limit = v
+		}
+
+		msgs, hasMore, err := getMessagesPaged(id, offset, limit)
 		if err != nil {
-			log.Printf("getMessages: %v", err)
+			log.Printf("getMessagesPaged: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -352,7 +370,369 @@ func handleRecord() http.HandlerFunc {
 			}{{Text: m.Content}}
 			history = append(history, item)
 		}
-		jsonResp(w, map[string]any{"ChatHistory": history})
+		jsonResp(w, map[string]any{"ChatHistory": history, "hasMore": hasMore})
+	}
+}
+
+// ── Live Mode ─────────────────────────────────────────────────────────────────
+
+var wsUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+const geminiLiveURL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+
+// handleLiveVoices returns the hardcoded list of Gemini voice presets.
+func handleLiveVoices() http.HandlerFunc {
+	type voice struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"displayName"`
+	}
+	voices := []voice{
+		{ID: "Aoede", DisplayName: "Aoede — Warm"},
+		{ID: "Charon", DisplayName: "Charon — Deep"},
+		{ID: "Fenrir", DisplayName: "Fenrir — Energetic"},
+		{ID: "Kore", DisplayName: "Kore — Clear"},
+		{ID: "Puck", DisplayName: "Puck — Expressive"},
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		jsonResp(w, voices)
+	}
+}
+
+// handleLiveWS upgrades browser connections to WebSocket and relays to Gemini Live API.
+func handleLiveWS(apiKey string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		model := r.URL.Query().Get("model")
+		voice := r.URL.Query().Get("voice")
+		if model == "" {
+			model = "gemini-3.1-flash-live-preview"
+		}
+		if voice == "" {
+			voice = "Aoede"
+		}
+
+		// Upgrade browser connection
+		browserWS, err := wsUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Printf("liveWS upgrade: %v", err)
+			return
+		}
+		defer browserWS.Close()
+
+		// Serialise all writes to browserWS — gorilla requires it
+		var wsMu sync.Mutex
+		wsSend := func(v any) {
+			wsMu.Lock()
+			defer wsMu.Unlock()
+			browserWS.WriteJSON(v)
+		}
+
+		// Connect to Gemini Live
+		geminiURL := fmt.Sprintf("%s?key=%s", geminiLiveURL, apiKey)
+		geminiWS, _, err := websocket.DefaultDialer.Dial(geminiURL, nil)
+		if err != nil {
+			log.Printf("liveWS gemini dial: %v", err)
+			wsSend(map[string]string{"type": "error", "message": "failed to connect to Gemini: " + err.Error()})
+			return
+		}
+		defer geminiWS.Close()
+
+		// Send setup message to Gemini — field names must be camelCase JSON
+		setup := map[string]any{
+			"setup": map[string]any{
+				"model": "models/" + model,
+				"generationConfig": map[string]any{
+					"responseModalities": []string{"AUDIO"},
+					"speechConfig": map[string]any{
+						"voiceConfig": map[string]any{
+							"prebuiltVoiceConfig": map[string]string{
+								"voiceName": voice,
+							},
+						},
+					},
+				},
+				"inputAudioTranscription":  map[string]any{},
+				"outputAudioTranscription": map[string]any{},
+			},
+		}
+		if err := geminiWS.WriteJSON(setup); err != nil {
+			log.Printf("liveWS gemini setup write: %v", err)
+			wsSend(map[string]string{"type": "error", "message": "setup failed: " + err.Error()})
+			return
+		}
+		log.Printf("liveWS: setup sent model=%s voice=%s", model, voice)
+
+		sessionID := newID()
+		var transcript []liveTurn
+		var transcriptMu sync.Mutex
+		var currentRole string
+		var currentText strings.Builder
+
+		// done: closed by goroutine A when browser disconnects or sends "end"
+		// geminiErr: goroutine B sends an error message then closes it
+		done := make(chan struct{})
+		geminiErr := make(chan string, 1)
+
+		// Goroutine A: browser → Gemini
+		go func() {
+			defer close(done)
+			for {
+				_, msg, err := browserWS.ReadMessage()
+				if err != nil {
+					return
+				}
+				var env map[string]any
+				if err := json.Unmarshal(msg, &env); err != nil {
+					continue
+				}
+				msgType, _ := env["type"].(string)
+				switch msgType {
+				case "end":
+					return
+				case "audio":
+					data, _ := env["data"].(string)
+					geminiMsg := map[string]any{
+						"realtimeInput": map[string]any{
+							"audio": map[string]any{
+								"mimeType": "audio/pcm;rate=16000",
+								"data":     data,
+							},
+						},
+					}
+					geminiWS.WriteJSON(geminiMsg)
+				}
+			}
+		}()
+
+		// Goroutine B: Gemini → browser + transcript buffer
+		go func() {
+			for {
+				_, msg, err := geminiWS.ReadMessage()
+				if err != nil {
+					select {
+					case geminiErr <- "Gemini connection closed: " + err.Error():
+					default:
+					}
+					return
+				}
+				var env map[string]any
+				if err := json.Unmarshal(msg, &env); err != nil {
+					log.Printf("liveWS gemini unmarshal: %v | raw: %.200s", err, msg)
+					continue
+				}
+				log.Printf("liveWS gemini msg keys: %v", msgKeys(env))
+
+				// BidiGenerateContentSetupComplete
+				if _, ok := env["setupComplete"]; ok {
+					log.Printf("liveWS: setupComplete received, sending session_ready")
+					wsSend(map[string]string{
+						"type":      "session_ready",
+						"sessionId": sessionID,
+					})
+					continue
+				}
+
+				// BidiGenerateContentServerContent
+				if sc, ok := env["serverContent"].(map[string]any); ok {
+					log.Printf("liveWS serverContent keys: %v", msgKeys(sc))
+					// Interrupted signal
+					if interrupted, _ := sc["interrupted"].(bool); interrupted {
+						transcriptMu.Lock()
+						if currentText.Len() > 0 {
+							transcript = append(transcript, liveTurn{Role: currentRole, Content: currentText.String()})
+							currentText.Reset()
+						}
+						transcriptMu.Unlock()
+						wsSend(map[string]string{"type": "interrupted"})
+						continue
+					}
+
+					// Model turn — extract audio only; text parts are internal reasoning
+					if modelTurn, ok := sc["modelTurn"].(map[string]any); ok {
+						if parts, ok := modelTurn["parts"].([]any); ok {
+							for _, p := range parts {
+								part, _ := p.(map[string]any)
+								if inlineData, ok := part["inlineData"].(map[string]any); ok {
+									audioData, _ := inlineData["data"].(string)
+									if audioData != "" {
+										wsSend(map[string]string{"type": "audio", "data": audioData})
+									}
+								}
+							}
+						}
+					}
+
+					// outputTranscription — actual spoken text from the model
+					if outputTranscription, ok := sc["outputTranscription"].(map[string]any); ok {
+						if text, ok := outputTranscription["text"].(string); ok && text != "" {
+							transcriptMu.Lock()
+							if currentRole != "assistant" && currentText.Len() > 0 {
+								transcript = append(transcript, liveTurn{Role: currentRole, Content: currentText.String()})
+								currentText.Reset()
+							}
+							currentRole = "assistant"
+							currentText.WriteString(text)
+							transcriptMu.Unlock()
+							wsSend(map[string]string{"type": "transcript", "role": "assistant", "text": text})
+						}
+					}
+
+					// inputTranscription — user's speech-to-text
+					if inputTranscription, ok := sc["inputTranscription"].(map[string]any); ok {
+						if text, ok := inputTranscription["text"].(string); ok && text != "" {
+							transcriptMu.Lock()
+							if currentRole != "user" && currentText.Len() > 0 {
+								transcript = append(transcript, liveTurn{Role: currentRole, Content: currentText.String()})
+								currentText.Reset()
+							}
+							currentRole = "user"
+							currentText.WriteString(text)
+							transcriptMu.Unlock()
+							wsSend(map[string]string{"type": "transcript", "role": "user", "text": text})
+						}
+					}
+
+					// Turn complete
+					if turnComplete, _ := sc["turnComplete"].(bool); turnComplete {
+						transcriptMu.Lock()
+						if currentText.Len() > 0 {
+							transcript = append(transcript, liveTurn{Role: currentRole, Content: currentText.String()})
+							currentText.Reset()
+						}
+						transcriptMu.Unlock()
+					}
+				}
+			}
+		}()
+
+		// Wait for session end — either browser closes or Gemini errors
+		select {
+		case <-done:
+		case errMsg := <-geminiErr:
+			log.Printf("liveWS: gemini error: %s", errMsg)
+			wsSend(map[string]string{"type": "error", "message": errMsg})
+			// drain browser goroutine
+			browserWS.Close()
+			<-done
+		}
+
+		// Save transcript to SQLite
+		transcriptMu.Lock()
+		if currentText.Len() > 0 {
+			transcript = append(transcript, liveTurn{Role: currentRole, Content: currentText.String()})
+		}
+		savedTranscript := transcript
+		transcriptMu.Unlock()
+
+		topic := "Live Session"
+		if len(savedTranscript) > 0 {
+			// Generate topic from first user turn
+			for _, t := range savedTranscript {
+				if t.Role == "user" && len(t.Content) > 0 {
+					words := strings.Fields(t.Content)
+					if len(words) > 5 {
+						words = words[:5]
+					}
+					topic = strings.Join(words, " ")
+					break
+				}
+			}
+		}
+
+		if len(savedTranscript) > 0 {
+			if err := saveLiveSession(sessionID, topic, savedTranscript); err != nil {
+				log.Printf("saveLiveSession: %v", err)
+			}
+		}
+
+		browserWS.WriteJSON(map[string]string{
+			"type":      "session_saved",
+			"sessionId": sessionID,
+			"topic":     topic,
+		})
+	}
+}
+
+// ── Chat Outline ──────────────────────────────────────────────────────────────
+
+// deriveLabel returns the first 8 whitespace-separated words of content,
+// capped at 60 UTF-8 bytes, truncated at the last full word boundary with "…".
+// Code-fence lines are skipped. Returns "[media]" for empty/whitespace content.
+func deriveLabel(content string) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return "[media]"
+	}
+	// Skip leading code-fence: extract only lines inside the fence block
+	lines := strings.Split(content, "\n")
+	var selected []string
+	if len(lines) > 0 && (strings.HasPrefix(lines[0], "```") || strings.HasPrefix(lines[0], "~~~")) {
+		for i := 1; i < len(lines); i++ {
+			if strings.HasPrefix(lines[i], "```") || strings.HasPrefix(lines[i], "~~~") {
+				break
+			}
+			selected = append(selected, lines[i])
+		}
+	} else {
+		selected = lines
+	}
+	text := strings.TrimSpace(strings.Join(selected, " "))
+	if text == "" {
+		return "[media]"
+	}
+
+	words := strings.Fields(text)
+	if len(words) > 8 {
+		words = words[:8]
+	}
+	label := strings.Join(words, " ")
+
+	// Trim to last full word within 60 bytes
+	if len(label) > 60 {
+		trimmed := label[:60]
+		// Walk back to last space
+		for i := len(trimmed) - 1; i >= 0; i-- {
+			if trimmed[i] == ' ' {
+				trimmed = trimmed[:i]
+				break
+			}
+		}
+		return trimmed + "…"
+	}
+	return label
+}
+
+func handleOutline() http.HandlerFunc {
+	type entry struct {
+		Index int    `json:"index"`
+		Role  string `json:"role"`
+		Label string `json:"label"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
+		conversationID := parts[len(parts)-1]
+
+		msgs, err := getMessages(conversationID)
+		if err != nil {
+			log.Printf("handleOutline getMessages: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+
+		entries := make([]entry, 0, len(msgs))
+		for i, m := range msgs {
+			role := m.Role
+			if role == "model" {
+				role = "assistant"
+			}
+			entries = append(entries, entry{
+				Index: i,
+				Role:  role,
+				Label: deriveLabel(m.Content),
+			})
+		}
+		jsonResp(w, map[string]any{"entries": entries})
 	}
 }
 
@@ -399,7 +779,11 @@ const (
 func toContents(msgs []message) []gContent {
 	out := make([]gContent, len(msgs))
 	for i, m := range msgs {
-		out[i] = gContent{Role: m.Role, Parts: []gPart{{Text: m.Content}}}
+		role := m.Role
+		if role == "assistant" {
+			role = "model"
+		}
+		out[i] = gContent{Role: role, Parts: []gPart{{Text: m.Content}}}
 	}
 	return out
 }
@@ -511,6 +895,14 @@ func newID() string {
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+func msgKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func getEnv(key, fallback string) string {

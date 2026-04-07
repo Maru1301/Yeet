@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  pull_request:
+    branches:
+      - master
+    types: [closed]
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client-app/package-lock.json
+
+      - name: Build frontend
+        run: |
+          cd client-app
+          npm ci
+          npm run build:Release
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Windows executable
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: 0
+        run: go build -o yeet.exe .
+
+      - name: Generate release tag
+        id: tag
+        run: echo "tag=v$(date +'%Y.%m.%d')-${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Release ${{ steps.tag.outputs.tag }}
+          body: |
+            **PR #${{ github.event.pull_request.number }}** — ${{ github.event.pull_request.title }}
+
+            ### Usage
+            1. Download `yeet.exe`
+            2. Set your Google AI Studio key: `$env:API_KEY="AIza..."`
+            3. Run: `.\yeet.exe`
+            4. Open `https://localhost:8080` in your browser
+          files: yeet.exe

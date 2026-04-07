@@ -13,12 +13,57 @@ html {
   }
 }
 
-/** Kingston Theme */
-
+// ─── CSS Custom Properties (Light / warm defaults) ────────────────────────────
 :root {
   --bg-alpha: rgba(var(--v-theme-surface-variant-alpha-get-channels), 0.5);
-
   --theme-card-opacity: 0.2;
+
+  // Border radius tokens
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  // Text
+  --text-muted: #8B6E5A;
+
+  // Borders
+  --border-color: #E5D5C5;
+
+  // Navigation
+  --nav-icon-color: rgb(var(--v-theme-darkPrimary));
+
+  // Chat bubbles
+  --bot-bg: #FFFBF5;
+  --bot-text: #3D2B1F;
+
+  // Code blocks
+  --code-bg: #F0E8DC;
+  --code-text: #3D2B1F;
+  --pre-bg: #EDE0D0;
+  --pre-text: #3D2B1F;
+
+  // Surfaces
+  --surface-elevated: #FFFBF5;
+
+  // List states
+  --list-selected-bg: #FDDCBE;
+  --list-hover-bg: #FDECD6;
+}
+
+// ─── Dark theme overrides (cool palette) ─────────────────────────────────────
+.v-theme--dark {
+  --text-muted: #94A3B8;
+  --border-color: #1E3A50;
+  --nav-icon-color: white;
+  --bot-bg: #1A2D40;
+  --bot-text: #E0F2FE;
+  --code-bg: #1E3044;
+  --code-text: #E0F2FE;
+  --pre-bg: #162032;
+  --pre-text: #E0F2FE;
+  --surface-elevated: #1A2D40;
+  --list-selected-bg: rgba(6, 182, 212, 0.2);
+  --list-hover-bg: rgba(14, 165, 233, 0.1);
 }
 
 /*---------------------
@@ -38,7 +83,7 @@ html {
 
   .v-list .v-list-item--active,
   .v-list .v-list-item--active .v-icon {
-    color: $Kingston_LightRed;
+    color: $color-error;
   }
 }
 
@@ -48,71 +93,72 @@ html {
 
 // [Dark] Select/Text field Label - regular
 .theme--dark.v-input--is-label-active:not(.v-input--selection-controls) .v-label {
-  color: $Kingston_LightRed;
+  color: $color-error;
 }
 
 // [Light] Select/Text field Underline - regular hover
 .theme--light.v-text-field>.v-input__control>.v-input__slot:after {
-  border-color: $Kingston_Black;
+  border-color: $color-text-primary;
 }
 
 .theme--light.v-label.v-label--active {
-  color: $Kingston_GenerativeAI_Primary;
+  color: $color-primary;
 }
 
-/** GenerativeAI Custom Elements */
+/** Custom Elements */
 
 .lightBgColor {
-  background-color: rgba($Kingston_GenerativeAI_LightBg, 0.2) !important;
+  background-color: rgba($color-light-bg, 0.2) !important;
 }
 
 .lightBgColorChip {
-  background-color: rgba($Kingston_GenerativeAI_LightBg, 0.5) !important;
+  background-color: rgba($color-light-bg, 0.5) !important;
 }
 
 .chat-bg {
   background: rgba(var(--v-theme-background)) !important;
 }
 
-/* Tutorial on https://fossheim.io/writing/posts/css-text-gradient. */
+/* Animated gradient text */
 
 @keyframes gradientAnimate {
   0% {
-    background-position: 0% 0%;
+    background-position: 120% 0%;
+  }
+
+  16.67% {
+    background-position: -20% 0%;
   }
 
   100% {
-    background-position: 100% 100%;
+    background-position: -20% 0%;
   }
 }
 
 .gradient-text {
-  /* Fallback: Set a background color. */
-  background-color: #FA3323;
+  background-color: #FB923C;
 
-  /* Create the gradient. */
   background-image: linear-gradient(90deg,
-      #FA3323 20%,
-      #6100FF 40%,
-      #FA3323 60%,
-      #6100FF 80%);
+      #C2410C 20%,
+      #92400E 40%,
+      #FB923C 50%,
+      #C2410C 60%,
+      #92400E 80%);
 
-  /* Set the background size and repeat properties. */
   background-size: 200% auto;
   background-repeat: repeat;
 
-  /* Use the text as a mask for the background. */
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  -moz-background-clip: text;
-  -moz-text-fill-color: transparent;
-  animation: gradientAnimate 3s ease-in-out infinite alternate;
+
+  animation: gradientAnimate 6s ease-in-out infinite;
   font-size: 24px;
+  display: inline-block;
 }
 
 .deep-purple-text {
-  color: #4B0082;
+  color: rgb(var(--v-theme-darkPurple));
 }
 
 .mermaid-wrap {
@@ -180,7 +226,6 @@ html {
 }
 
 [class*="-bg-card"] {
-  // 這裡假設你傳入的是 --v-theme-xxx-get-channels
   background: rgba(var(--card-rgb), 0.2);
 
   &.v-theme--dark {

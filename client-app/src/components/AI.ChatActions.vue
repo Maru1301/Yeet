@@ -4,12 +4,13 @@
                :open-on-hover="false"
                location="bottom">
       <template v-slot:activator="{ props: tooltipProps }">
-        <v-btn v-bind="tooltipProps"
+        <v-btn v-if="!hideShare"
+               v-bind="tooltipProps"
                icon
                density="compact"
                variant="flat"
                @click="copyFullPath(chatId)">
-          <v-icon color="#717275"
+          <v-icon class="action-icon"
                   size="default">mdi-share-variant</v-icon>
         </v-btn>
       </template>
@@ -25,7 +26,7 @@
                density="compact"
                variant="flat"
                @click="copyContent(message.markdownContent)">
-          <v-icon color="#717275">mdi-content-copy</v-icon>
+          <v-icon class="action-icon">mdi-content-copy</v-icon>
         </v-btn>
       </template>
       <span>Content Copied</span>
@@ -41,6 +42,7 @@ const props = defineProps<{
   department?: string;
   message: { markdownContent: string; };
   useAgent?: boolean;
+  hideShare?: boolean;
 }>();
 
 const showShareInfo = ref(false);
@@ -62,8 +64,28 @@ async function copyFullPath(chatId: string): Promise<void> {
   }, 1000);
 }
 
+function stripMarkdown(md: string): string {
+  return md
+    .replace(/^#{1,6}\s+/gm, '')          // headings
+    .replace(/\*\*(.+?)\*\*/g, '$1')       // bold
+    .replace(/\*(.+?)\*/g, '$1')           // italic
+    .replace(/__(.+?)__/g, '$1')           // bold
+    .replace(/_(.+?)_/g, '$1')             // italic
+    .replace(/~~(.+?)~~/g, '$1')           // strikethrough
+    .replace(/`{3}[\s\S]*?`{3}/g, (m) =>  // fenced code blocks → plain text
+      m.replace(/^```[^\n]*\n/, '').replace(/```$/, ''))
+    .replace(/`(.+?)`/g, '$1')             // inline code
+    .replace(/^\s*[-*+]\s+/gm, '')         // unordered list markers
+    .replace(/^\s*\d+\.\s+/gm, '')         // ordered list markers
+    .replace(/^\s*>\s+/gm, '')             // blockquotes
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1')    // links → label only
+    .replace(/!\[.*?\]\(.+?\)/g, '')       // images
+    .replace(/[-]{3,}/g, '')               // horizontal rules
+    .trim();
+}
+
 async function copyContent(content: string): Promise<void> {
-  await navigator.clipboard.writeText(content);
+  await navigator.clipboard.writeText(stripMarkdown(content));
   showCopyInfo.value = true;
   setTimeout(() => {
     showCopyInfo.value = false;
@@ -77,5 +99,14 @@ async function copyContent(content: string): Promise<void> {
   height: 28px;
   min-width: 28px;
   background-color: transparent;
+}
+
+.action-icon {
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: rgb(var(--v-theme-primary));
+  }
 }
 </style>

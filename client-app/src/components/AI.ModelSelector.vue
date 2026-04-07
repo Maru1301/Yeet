@@ -10,14 +10,14 @@
               pointer>
         <v-list-item link>
           <v-list-item-title class="text-h5 font-weight-bold copilot-title">
-            <span class="title-text">AI Chat</span>
+            <span class="title-text">AI Chat </span>
             <span class="gradient-text text-uppercase">
               {{ department ? department : "Workspace" }}
             </span>
           </v-list-item-title>
 
           <v-list-item-subtitle class="d-flex subtitleGPT opacity-100">
-            <span class="text-red-darken-2 font-weight-medium">
+            <span class="text-primary font-weight-medium">
               {{ usedModel.displayName || usedModel.name }}
             </span>
           </v-list-item-subtitle>
@@ -158,40 +158,36 @@ watch(() => props.conversation, (newVal) => {
 }
 
 .model-selector-list {
-  background: white;
+  background: rgb(var(--v-theme-surface));
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(75, 0, 130, 0.15);
+  box-shadow: 0 8px 32px rgba(var(--v-theme-primary), 0.12);
   overflow: hidden;
-  border: 1px solid rgba(75, 0, 130, 0.1);
+  border: 1px solid var(--border-color);
   width: max-content;
 }
 
 .model-list-item {
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--border-color);
 
   &:last-child {
     border-bottom: none;
   }
 
   &:hover {
-    background: linear-gradient(135deg, rgba(75, 0, 130, 0.08) 0%, rgba(97, 0, 255, 0.05) 100%);
+    background: rgba(var(--v-theme-primary), 0.06);
     transform: translateX(4px);
-    border-left: 3px solid #4B0082;
-    box-shadow: inset 0 0 0 1px rgba(75, 0, 130, 0.1);
+    border-left: 3px solid rgb(var(--v-theme-primary));
+    box-shadow: inset 0 0 0 1px rgba(var(--v-theme-primary), 0.08);
   }
 
   &.selected-model {
-    background: linear-gradient(135deg, rgba(75, 0, 130, 0.12) 0%, rgba(97, 0, 255, 0.08) 100%);
-    border-left: 4px solid #4B0082;
+    background: rgba(var(--v-theme-primary), 0.08);
+    border-left: 4px solid rgb(var(--v-theme-primary));
 
     .model-title {
-      color: #4B0082;
+      color: rgb(var(--v-theme-primary));
       font-weight: 600;
-    }
-
-    .v-theme--dark & .model-title {
-      color: #b042ff;
     }
   }
 }
@@ -199,36 +195,20 @@ watch(() => props.conversation, (newVal) => {
 .model-title {
   font-size: 16px;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--bot-text);
   transition: color 0.3s ease;
-}
-
-.v-theme--dark {
-  .model-title {
-    color: #6f9ecd;
-  }
 }
 
 .v-menu__content {
   animation: slideDown 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-// Light theme
 .model-icon {
-  color: #757575;
+  color: var(--text-muted);
 }
 
 .model-icon.is-selected {
-  color: #673AB7;
-}
-
-// Dark theme
-.v-theme--dark .model-icon {
-  color: #BDBDBD;
-}
-
-.v-theme--dark .model-icon.is-selected {
-  color: #CE93D8;
+  color: rgb(var(--v-theme-primary));
 }
 
 

@@ -13,7 +13,7 @@
                 department ? department : "Workspace" }}</span>
             </div>
             <div class="d-flex subtitleGPT chat-bg">
-              <span class="text-red-darken-2 font-weight-medium">Conversation Records</span>
+              <span class="text-primary font-weight-medium">Conversation Records</span>
             </div>
           </v-list-item>
         </v-list>
@@ -42,31 +42,47 @@
           <div ref="chatBox"
                class="chatbox mt-6">
             <div class="mx-2">
-              <div v-for="record in filteredRecords"
-                   :key="record.id">
+              <div v-for="(record, index) in filteredRecords"
+                   :key="record.id ?? index">
                 <div v-if="record.Role?.Label == 'user' && record.Items && record.Items[0]?.Text"
-                     class="d-flex justify-end align-end mb-3">
-                  <div class="d-flex flex-column align-end chat-user pt-2 pb-2 pr-4 pl-4">
-                    <div v-if="record.Items && record.Items[0]?.Text"
-                         class="user-content"
-                         v-html="convertMarkdown(record.Items[0].Text)">
+                     class="d-flex justify-end align-end mb-3 user-record-row">
+                  <div v-if="record.Items[0].Text"
+                       class="user-actions-wrap">
+                    <ChatActions :chatId="conversationId"
+                                 :message="{ markdownContent: record.Items[0].Text }"
+                                 :useAgent="isAgentRecord"
+                                 :hideShare="true" />
+                  </div>
+                  <div class="d-flex flex-column"
+                       style="min-width: 0">
+                    <div class="d-flex flex-column align-end chat-user pt-2 pb-2 pr-4 pl-4">
+                      <div v-if="record.Items && record.Items[0]?.Text"
+                           class="user-content"
+                           v-html="convertMarkdown(record.Items[0].Text)">
+                      </div>
+                      <img v-if="record.image"
+                           :src="record.image"
+                           alt="User's Image"
+                           class="mt-2">
                     </div>
-                    <img v-if="record.image"
-                         :src="record.image"
-                         alt="User's Image"
-                         class="mt-2">
                   </div>
                 </div>
                 <div v-else-if="record.Role?.Label == 'assistant'"
-                     class="d-flex flex-column mb-3">
-                  <div class="d-flex justify-start align-end mb-1">
-                    <img class="mr-3"
-                         width="35"
-                         :src="kingAvatar"
-                         alt="AI Chat" />
+                     class="d-flex mb-3">
+                  <img class="mr-3 bot-avatar"
+                       :src="yeetAvatar"
+                       alt="AI Chat" />
+                  <div class="d-flex flex-column"
+                       style="min-width: 0; flex: 1">
                     <div class="d-flex flex-column align-end chat-bot pt-2 pb-3 pr-4 pl-4">
                       <div class="bot-content"
                            v-html="convertMarkdown(record.Items && record.Items[0] ? record.Items[0].Text : '')"></div>
+                    </div>
+                    <div class="d-flex justify-end mt-1">
+                      <ChatActions :chatId="conversationId"
+                                   :message="{ markdownContent: record.Items?.[0]?.Text ?? '' }"
+                                   :useAgent="isAgentRecord"
+                                   :hideShare="true" />
                     </div>
                   </div>
                 </div>
@@ -91,10 +107,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAppStore } from '../store/index';
 import { gptService } from '../global/gpt.api.service';
 import { renderMermaidWithDownloads } from '../utils/mermaidDownload';
+import ChatActions from './AI.ChatActions.vue';
 import markdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 
-const kingAvatar = new URL('../assets/king-avator.svg', import.meta.url).href;
+const yeetAvatar = new URL('../assets/yeet.png', import.meta.url).href;
 
 const route = useRoute();
 const router = useRouter();
@@ -116,6 +133,11 @@ interface ChatRecord {
 
 const records = ref<ChatRecord[]>([]);
 const isLoading = ref(true);
+
+const conversationId = computed(() => route.query.conversationId as string ?? '');
+const isAgentRecord = computed(() =>
+  typeof route.query.isAgent === 'string' && route.query.isAgent.toLowerCase() === 'true'
+);
 
 const department = computed(() => route.params.department as string || '');
 
@@ -230,12 +252,12 @@ onMounted(async () => {
 }
 
 .chat-bot {
-  color: #333;
+  color: var(--bot-text);
   font-style: normal;
   font-weight: 400;
   line-height: 1.75rem;
   border-radius: 20px 20px 20px 3px;
-  background: #FFF;
+  background: var(--bot-bg);
   overflow-x: auto;
 
   .bot-content {
@@ -251,7 +273,7 @@ onMounted(async () => {
 
     hr {
       border: none;
-      border-top: 2px solid #EEEEEE;
+      border-top: 2px solid var(--border-color);
       height: 0;
       margin-top: 8px;
       margin-bottom: 8px;
@@ -275,19 +297,19 @@ onMounted(async () => {
     }
 
     pre>code {
-      background-color: #f5f5f5;
-      color: #333;
+      background-color: var(--pre-bg);
+      color: var(--pre-text);
       white-space: pre;
     }
 
     code {
-      background-color: #EEEEEE;
-      color: #333;
+      background-color: var(--code-bg);
+      color: var(--code-text);
     }
   }
 
   table {
-    border: 1px solid #D7DEF8;
+    border: 1px solid var(--border-color);
     border-collapse: collapse;
     border-spacing: 1px;
     text-align: left;
@@ -295,14 +317,14 @@ onMounted(async () => {
   }
 
   th {
-    border: 1px solid #D7DEF8;
-    background-color: #EEEEEE;
+    border: 1px solid var(--border-color);
+    background-color: var(--code-bg);
     padding: 5px;
   }
 
   td {
-    border: 1px solid #D7DEF8;
-    background-color: white;
+    border: 1px solid var(--border-color);
+    background-color: var(--bot-bg);
     padding: 5px;
   }
 
@@ -318,7 +340,7 @@ onMounted(async () => {
   font-weight: 700;
   line-height: 1.75rem;
   border-radius: 20px 20px 3px 20px;
-  background: #DB2627;
+  background: rgb(var(--v-theme-primary));
   overflow-x: auto;
 
   .user-content {
@@ -449,16 +471,16 @@ onMounted(async () => {
   }
 
   &:hover {
-    background: #fff;
-    border-color: #DB2627;
-    color: #DB2627;
-    box-shadow: 0 4px 16px rgba(219, 38, 39, 0.15);
+    background: rgb(var(--v-theme-surface));
+    border-color: rgb(var(--v-theme-primary));
+    color: rgb(var(--v-theme-primary));
+    box-shadow: 0 4px 16px rgba(var(--v-theme-primary), 0.15);
   }
 }
 
 .mermaid-context-menu {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e0e0e0;
+  background: var(--bot-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 4px;
   min-width: 0;
@@ -475,7 +497,7 @@ onMounted(async () => {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #555;
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -483,14 +505,34 @@ onMounted(async () => {
   transition: color 0.15s ease, background 0.15s ease;
 
   &:hover {
-    background: rgba(219, 38, 39, 0.06);
-    color: #DB2627;
+    background: rgba(var(--v-theme-primary), 0.06);
+    color: rgb(var(--v-theme-primary));
   }
+}
+
+.bot-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.user-record-row {
+  .user-actions-wrap {
+    flex-shrink: 0;
+    align-self: center;
+    margin-right: 6px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  &:hover .user-actions-wrap { opacity: 1; }
 }
 
 .chat-footer {
   width: 100%;
-  color: #666;
+  color: var(--text-muted);
   font-size: 12px;
   font-style: normal;
   font-weight: 400;
@@ -500,46 +542,25 @@ onMounted(async () => {
   justify-content: center;
 
   .policy {
-    color: #DB2627;
+    color: rgb(var(--v-theme-primary));
     text-decoration: none;
   }
 
   .kingston {
-    color: #DB2627;
+    color: rgb(var(--v-theme-primary));
   }
 }
 
-// Dark theme overrides
+// Dark theme overrides — colors handled via CSS vars in main.scss
 .v-theme--dark {
-  .chat-bot {
-    background: #2a2d3e;
-    color: #e0e0e0;
-
-    .bot-content {
-      pre>code {
-        background-color: #313447;
-        color: #e0e0e0;
-      }
-
-      code {
-        background-color: #3a3d50;
-        color: #e0e0e0;
-      }
-    }
-  }
-
   .mermaid-context-menu {
-    background: #2a2d3e;
-    border-color: #3a3d55;
-    color: #e0e0e0;
+    background: var(--bot-bg);
+    border-color: var(--border-color);
+    color: var(--bot-text);
   }
 
   .mermaid-context-menu-item:hover {
-    background: #3a3d50;
-  }
-
-  .chat-footer {
-    color: #aaa;
+    background: var(--code-bg);
   }
 }
 

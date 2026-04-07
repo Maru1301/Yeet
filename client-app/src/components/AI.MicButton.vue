@@ -152,23 +152,23 @@ defineExpose({ isListening, tooltipText, appendText, stop });
 /* Pulse ring on the button while listening */
 .mic-pulsing {
   animation: micPulse 1.25s ease-in-out infinite;
-  box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.6);
+  box-shadow: 0 0 0 0 rgba(var(--v-theme-primary), 0.6);
   border-radius: 50%;
 }
 
 @keyframes micPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.6);
+    box-shadow: 0 0 0 0 rgba(var(--v-theme-primary), 0.6);
     transform: scale(1);
   }
 
   70% {
-    box-shadow: 0 0 0 12px rgba(244, 67, 54, 0);
+    box-shadow: 0 0 0 12px rgba(var(--v-theme-primary), 0);
     transform: scale(1.08);
   }
 
   100% {
-    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
+    box-shadow: 0 0 0 0 rgba(var(--v-theme-primary), 0);
     transform: scale(1);
   }
 }
@@ -180,15 +180,15 @@ defineExpose({ isListening, tooltipText, appendText, stop });
 
 @keyframes micGlow {
   0% {
-    text-shadow: 0 0 4px rgba(244, 67, 54, 0.6);
+    text-shadow: 0 0 4px rgba(var(--v-theme-primary), 0.6);
   }
 
   50% {
-    text-shadow: 0 0 10px rgba(244, 67, 54, 0.9);
+    text-shadow: 0 0 10px rgba(var(--v-theme-primary), 0.9);
   }
 
   100% {
-    text-shadow: 0 0 4px rgba(244, 67, 54, 0.6);
+    text-shadow: 0 0 4px rgba(var(--v-theme-primary), 0.6);
   }
 }
 

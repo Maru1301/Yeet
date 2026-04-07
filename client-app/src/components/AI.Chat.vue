@@ -7,7 +7,8 @@
               @new-chat="newChat"
               @select-conversation="selectConversation"
               @delete-conversation="handleDeleteConversation"
-              @open-prompt-manager="showPromptManager = true" />
+              @open-prompt-manager="showPromptManager = true"
+              @live-mode="$router.push('/live')" />
 
     <!-- Chat Interface -->
     <v-card v-if="!showPromptManager"
@@ -30,10 +31,13 @@
 
       <div class="chat-bg d-flex flex-column flex-grow-1 overflow-hidden align-center"
            style="position: relative;">
+
+        <ChatOutline @navigate="navigateToMessage" />
+
         <div ref="chatBox"
              class="chatbox flex-grow-1 overflow-y-auto pa-4">
           <div class="mx-auto"
-               style="width: 100%; max-width: 1100px;">
+               style="width: 100%;">
             <div class="d-flex flex-column align-center">
               <div class="d-flex flex-column align-center">
                 <img class="chat-bg-img chat-bg-light"
@@ -46,8 +50,7 @@
                      alt="AI Chat" />
                 <div class="chat-title my-3 gradient-text">Hi, {{ account }}</div>
                 <div class="chat-subtitle">
-                  Discover prompt ideas by using the <span class="text-red">@</span> tag.<br />
-                  Click one of the prompts below to get started. We now offer the GPT-5 model.
+                  Ask me anything. Start a conversation below.
                 </div>
               </div>
             </div>
@@ -55,9 +58,16 @@
 
             <div class="mx-2">
               <div v-for="(message, index) in messages"
-                   :key="index">
+                   :key="index"
+                   :data-message-index="index">
                 <div v-if="message.role == 'user'"
-                     class="d-flex justify-end align-end mb-3">
+                     class="d-flex justify-end align-end mb-3 user-msg-row">
+                  <div v-if="message.content"
+                       class="user-actions-wrap">
+                    <ChatActions :chatId="chatId!"
+                                 :message="message"
+                                 :useAgent="useAgent" />
+                  </div>
                   <div class="d-flex flex-column"
                        style="min-width: 0">
                     <div class="d-flex flex-column align-end chat-user pt-2 pb-2 pr-4 pl-4">
@@ -70,24 +80,15 @@
                            class="mt-2"
                            style="max-width: 100%; border-radius: 12px;">
                     </div>
-                    <div v-if="message.content"
-                         class="d-flex justify-end mt-1">
-                      <ChatActions :chatId="chatId!"
-                                   :message="message"
-                                   :useAgent="useAgent" />
-                    </div>
                   </div>
                 </div>
                 <div class="d-flex mb-3"
                      v-else>
-                  <img class="mr-3 flex-shrink-0"
-                       style="align-self: flex-end; margin-bottom: 32px;"
-                       width="35"
-                       height="35"
-                       :src="kingAvatar"
+                  <img class="mr-3 bot-avatar"
+                       :src="botAvatar"
                        alt="AI Chat" />
                   <div class="d-flex flex-column"
-                       style="min-width: 0">
+                       style="min-width: 0; flex: 1">
                     <div class="d-flex flex-column align-end chat-bot pt-2 pb-3 pr-4 pl-4">
                       <div v-if="message.content"
                            class="bot-content"
@@ -108,11 +109,22 @@
                   </div>
                 </div>
               </div>
+              <div v-if="isError"
+                   class="d-flex justify-center mt-2 mb-1">
+                <v-btn variant="outlined"
+                       color="red"
+                       size="small"
+                       :ripple="false"
+                       @click="retry">
+                  Retry
+                </v-btn>
+              </div>
             </div>
+            <div v-if="isResponding" style="min-height: 60vh;"></div>
           </div>
         </div>
 
-        <div class="d-flex flex-column align-center mt-3">
+        <div class="d-flex flex-column align-center mt-3" style="width: 100%;">
           <div class="input-block">
             <div class="d-flex ml-2 mr-2 align-end">
               <Textarea ref="textareaRef"
@@ -181,7 +193,17 @@
                            :currentLen="len"
                            @listening-change="onListeningChange" />
                 <span class="text-grey">{{ `${len}/${maxLen}` }}</span>
-                <v-btn icon
+                <v-btn v-if="isResponding"
+                       icon
+                       variant="plain"
+                       color="red"
+                       :ripple="false"
+                       style="background-color: transparent;"
+                       @click="stopGeneration">
+                  <v-icon>mdi-stop</v-icon>
+                </v-btn>
+                <v-btn v-else
+                       icon
                        variant="plain"
                        color="red"
                        :ripple="false"
@@ -219,7 +241,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAppStore } from '../store/index';
 import { gptService } from '../global/gpt.api.service';
@@ -240,10 +262,30 @@ import PromptCards from './AI.PromptCards.vue';
 import PromptManager from './AI.PromptManager.vue';
 import MicButton from './AI.MicButton.vue';
 import AIFooter from './AI.Footer.vue';
+import ChatOutline from './AI.ChatOutline.vue';
+import { useOutlineStore } from '../store/outline';
 
-const chatBg = new URL('../assets/ChatBackground.svg', import.meta.url).href;
-const chatBg_dark = new URL('../assets/ChatBackgroundDark.svg', import.meta.url).href;
-const kingAvatar = new URL('../assets/king-avator.svg', import.meta.url).href;
+const chatBg = new URL('../assets/yeet_welcome.png', import.meta.url).href;
+const chatBg_dark = new URL('../assets/yeet_welcome.png', import.meta.url).href;
+const yeetClosed = new URL('../assets/yeet.png', import.meta.url).href;
+const yeetOpen = new URL('../assets/yeet_mouth_open.png', import.meta.url).href;
+const botAvatar = ref(yeetClosed);
+let talkTimer: ReturnType<typeof setTimeout> | null = null;
+
+function startTalking() {
+  let mouthOpen = false;
+  function tick() {
+    mouthOpen = !mouthOpen;
+    botAvatar.value = mouthOpen ? yeetOpen : yeetClosed;
+    talkTimer = setTimeout(tick, 80 + Math.random() * 280);
+  }
+  tick();
+}
+
+function stopTalking() {
+  if (talkTimer) { clearTimeout(talkTimer); talkTimer = null; }
+  botAvatar.value = yeetClosed;
+}
 
 const route = useRoute();
 
@@ -273,8 +315,14 @@ const drawer = ref(true);
 const micListening = ref(false);
 const showPromptManager = ref(false);
 const snackbar = ref({ visible: false, message: '', color: 'success' });
+const lastPrompt = ref('');
+const isError = ref(false);
+const historyOffset = ref(0);
+const hasMoreHistory = ref(false);
+const isLoadingHistory = ref(false);
 
 const textDecoder = new TextDecoder('utf-8');
+const outlineStore = useOutlineStore();
 
 // markdown-it instance
 const md = (() => {
@@ -324,7 +372,7 @@ const canSend = computed(() => !isResponding.value && len.value > 0 && len.value
 
 // Watchers
 watch(messages, () => {
-  scrollDown();
+  // auto-scroll disabled
 });
 
 watch(usedModel, async (newModel, oldModel) => {
@@ -356,6 +404,31 @@ function scrollDown() {
   });
 }
 
+
+function navigateToMessage(index: number) {
+  if (!chatBox.value) return;
+  const el = chatBox.value.querySelector(`[data-message-index="${index}"]`) as HTMLElement | null;
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    outlineStore.setActiveIndex(index);
+  }
+}
+
+function updateOutlineActiveIndex() {
+  if (!outlineStore.visible || !chatBox.value) return;
+  const box = chatBox.value;
+  const mid = box.getBoundingClientRect().top + box.getBoundingClientRect().height / 2;
+  const els = box.querySelectorAll('[data-message-index]');
+  let active = 0;
+  els.forEach((el) => {
+    const rect = el.getBoundingClientRect();
+    if (rect.top <= mid) {
+      active = Number((el as HTMLElement).dataset.messageIndex ?? 0);
+    }
+  });
+  outlineStore.setActiveIndex(active);
+}
+
 function summarize() {
   input.value = SummaryPrompt;
   send(false);
@@ -378,7 +451,9 @@ function toHtml(text: string): string {
 async function send(firstPrompt = true) {
   micButtonRef.value?.stop?.();
   const prompt = input.value.trim();
+  lastPrompt.value = prompt;
   input.value = '';
+  isError.value = false;
   messages.value = [...messages.value];
   if (!prompt) return;
 
@@ -386,8 +461,17 @@ async function send(firstPrompt = true) {
     const userConversation: any = { role: 'user', content: toHtml(prompt) };
     if (fileDataUri.value?.startsWith('data:image')) userConversation.image = fileDataUri.value;
     messages.value.push(userConversation);
+    outlineStore.appendEntry(prompt, 'user');
   }
   messages.value.push({ role: 'gpt', content: '' });
+  nextTick(() => {
+    if (!chatBox.value) return;
+    const userBubbles = chatBox.value.querySelectorAll('.chat-user');
+    if (!userBubbles.length) return;
+    const lastBubble = userBubbles[userBubbles.length - 1] as HTMLElement;
+    const row = lastBubble.closest('.d-flex.justify-end') as HTMLElement;
+    if (row) chatBox.value.scrollTop = row.offsetTop - 16;
+  });
 
   isResponding.value = true;
 
@@ -421,7 +505,6 @@ async function send(firstPrompt = true) {
           return '';
         } else {
           processChatStreamChunk(value);
-          scrollDown();
           return reader.read().then(pump);
         }
       });
@@ -434,10 +517,15 @@ async function send(firstPrompt = true) {
 async function handleChatStreamEnd() {
   const msg = messages.value[messages.value.length - 1];
   if (!msg) return;
-  msg.content = toHtml(content.value);
-  msg.markdownContent = content.value;
+  const rawContent = content.value;
+  msg.content = toHtml(rawContent);
+  msg.markdownContent = rawContent;
   if (msg.content.includes('This request has been blocked by our content filters.')) {
     msg.content = "Your request has violated the company's content policy.";
+  }
+  // Append assistant entry to outline after response completes
+  if (rawContent) {
+    outlineStore.appendEntry(rawContent, 'assistant');
   }
   isResponding.value = false;
   content.value = '';
@@ -470,6 +558,7 @@ function processChatStreamChunk(value: Uint8Array) {
   } else {
     text = parseStreamBuffer(buffer);
   }
+  if (text && !content.value) startTalking();
   content.value += text;
   const msg = messages.value[messages.value.length - 1];
   if (!msg) return;
@@ -497,16 +586,33 @@ function parseStreamBuffer(buffer: string): string {
 
 function handleChatStreamError(error: unknown) {
   isResponding.value = false;
+  isError.value = true;
   const msg = messages.value[messages.value.length - 1];
   if (msg) {
-    msg.content = 'An error occurred in the AI system. Please enter the conversation again or <strong>refresh the page</strong>.';
+    msg.content = 'An error occurred in the AI system.';
   }
   console.error('Chat stream error:', error);
+}
+
+async function retry() {
+  messages.value.pop();
+  isError.value = false;
+  input.value = lastPrompt.value;
+  await send(false);
+}
+
+async function stopGeneration() {
+  cancelAPI.value.abort();
+  cancelAPI.value = new AbortController();
+  await handleChatStreamEnd();
 }
 
 async function newChat() {
   chatId.value = null;
   showPromptManager.value = false;
+  hasMoreHistory.value = false;
+  historyOffset.value = 0;
+  outlineStore.$patch({ entries: [], conversationId: null, activeIndex: 0 });
   micButtonRef.value?.stop?.();
   cancelAPI.value.abort();
   cancelAPI.value = new AbortController();
@@ -546,54 +652,112 @@ async function handleDeleteConversation(deletedConversation: any) {
   }
 }
 
-async function initRecords(conversation: any) {
-  if (!conversation || !conversation.conversationId) return;
+// ── record helpers (shared by initRecords and loadMoreHistory) ────────────────
 
-  const isAgent = !!conversation.isAgent;
-  const conversationId = conversation.conversationId;
-  const buildPayload = () => isAgent ? { userId: '', conversationId } : { conversationId };
-  const mapAgentRecord = (record: any) => ({
+function mapAgentRecord(record: any) {
+  return {
     role: record.role,
     content: toHtml(record.content),
     markdownContent: record.content,
     image: '',
     timestamp: record.timestamp,
-  });
-  const isChatMessage = (record: any) => {
-    const label = record?.Role?.Label;
-    const firstItem = record?.Items?.[0];
-    return (label === 'assistant' || label === 'user') && !!firstItem?.Text;
   };
-  const toMessage = (record: any) => {
-    const items = record?.Items ?? [];
-    const firstText = items[0]?.Text ?? '';
-    const imageItem = items.find((it: any) => it?.Data && it?.MimeType);
-    const imageDataUri = imageItem ? `data:${imageItem.MimeType};base64,${imageItem.Data}` : '';
-    return {
-      role: record.Role.Label,
-      content: toHtml(firstText),
-      markdownContent: firstText,
-      image: imageDataUri,
-    };
+}
+
+function isChatMessage(record: any): boolean {
+  const label = record?.Role?.Label;
+  const firstItem = record?.Items?.[0];
+  return (label === 'assistant' || label === 'user') && !!firstItem?.Text;
+}
+
+function toMessage(record: any) {
+  const items = record?.Items ?? [];
+  const firstText = items[0]?.Text ?? '';
+  const imageItem = items.find((it: any) => it?.Data && it?.MimeType);
+  const imageDataUri = imageItem ? `data:${imageItem.MimeType};base64,${imageItem.Data}` : '';
+  return {
+    role: record.Role.Label,
+    content: toHtml(firstText),
+    markdownContent: firstText,
+    image: imageDataUri,
   };
+}
+
+// ── history loading ───────────────────────────────────────────────────────────
+
+async function initRecords(conversation: any) {
+  if (!conversation || !conversation.conversationId) return;
+
+  const isAgent = !!conversation.isAgent;
+  const conversationId = conversation.conversationId;
+
+  if (chatId.value === conversationId) return;
+
+  historyOffset.value = 0;
+  hasMoreHistory.value = false;
 
   try {
-    const api = await gptService.record.request(buildPayload(), isAgent);
+    const api = await gptService.record.request(
+      { conversationId, offset: 0, limit: 10 },
+      isAgent,
+    );
     if (isAgent && api?.data?.records) {
-      console.log('Agent Chat History:', api.data);
       messages.value = api.data.records.map(mapAgentRecord);
       chatId.value = api.data.conversationId;
-      return;
+      hasMoreHistory.value = false;
+    } else {
+      const chatHistory = api?.data?.ChatHistory ?? [];
+      messages.value = chatHistory.filter(isChatMessage).map(toMessage);
+      chatId.value = conversationId;
+      hasMoreHistory.value = api?.data?.hasMore ?? false;
+      historyOffset.value = messages.value.length;
     }
-    const chatHistory = api?.data?.ChatHistory ?? [];
-    messages.value = chatHistory.filter(isChatMessage).map(toMessage);
-    chatId.value = conversationId;
+    nextTick(() => scrollDown());
+    outlineStore.fetchEntries(conversationId);
   } catch (error) {
     console.error('Error fetching records:', error);
   }
 }
 
+async function loadMoreHistory() {
+  if (!chatId.value || isLoadingHistory.value || !hasMoreHistory.value) return;
+  isLoadingHistory.value = true;
+
+  const box = chatBox.value;
+  const prevScrollHeight = box?.scrollHeight ?? 0;
+
+  try {
+    const api = await gptService.record.request(
+      { conversationId: chatId.value, offset: historyOffset.value, limit: 10 },
+      false,
+    );
+    const older = (api?.data?.ChatHistory ?? []).filter(isChatMessage).map(toMessage);
+    if (older.length > 0) {
+      messages.value = [...older, ...messages.value];
+      historyOffset.value += older.length;
+    }
+    hasMoreHistory.value = api?.data?.hasMore ?? false;
+
+    nextTick(() => {
+      if (box) box.scrollTop = box.scrollHeight - prevScrollHeight;
+    });
+  } catch (error) {
+    console.error('Error loading more history:', error);
+  } finally {
+    isLoadingHistory.value = false;
+  }
+}
+
+function onChatBoxScroll() {
+  if (!chatBox.value) return;
+  if (hasMoreHistory.value && !isLoadingHistory.value && chatBox.value.scrollTop < 150) {
+    loadMoreHistory();
+  }
+  updateOutlineActiveIndex();
+}
+
 onMounted(async () => {
+  chatBox.value?.addEventListener('scroll', onChatBoxScroll);
   const q = route.query.q as string;
   if (q) {
     input.value = q;
@@ -601,11 +765,49 @@ onMounted(async () => {
   }
 });
 
-// 串流結束時渲染 mermaid
+onUnmounted(() => {
+  chatBox.value?.removeEventListener('scroll', onChatBoxScroll);
+});
+
+const COPY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
+const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;
+
+function bindCodeCopyButtons(querySelector: string): void {
+  document.querySelectorAll(querySelector).forEach(container => {
+    container.querySelectorAll<HTMLElement>('pre').forEach(pre => {
+      if (pre.dataset.copyBound === 'true') return;
+      pre.dataset.copyBound = 'true';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'code-copy-btn';
+      btn.setAttribute('aria-label', 'Copy code');
+      btn.innerHTML = COPY_ICON;
+
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const text = pre.querySelector('code')?.textContent ?? '';
+        await navigator.clipboard.writeText(text);
+        btn.innerHTML = CHECK_ICON;
+        btn.classList.add('code-copy-btn--copied');
+        setTimeout(() => {
+          btn.innerHTML = COPY_ICON;
+          btn.classList.remove('code-copy-btn--copied');
+        }, 2000);
+      });
+
+      pre.appendChild(btn);
+    });
+  });
+}
+
+// 串流結束時渲染 mermaid + 停止說話動畫
 watch(isResponding, async (newVal, oldVal) => {
   if (oldVal === true && newVal === false) {
+    stopTalking();
     await nextTick();
     renderMermaidWithDownloads('.bot-content .mermaid, .user-content .mermaid');
+    bindCodeCopyButtons('.bot-content, .user-content');
   }
 });
 
@@ -613,6 +815,7 @@ watch(isResponding, async (newVal, oldVal) => {
 watch(messages, async () => {
   await nextTick();
   renderMermaidWithDownloads('.bot-content .mermaid, .user-content .mermaid');
+  bindCodeCopyButtons('.bot-content, .user-content');
 }, { flush: 'post' });
 </script>
 
@@ -651,22 +854,22 @@ watch(messages, async () => {
     border: none;
     height: 0;
     margin: 8px 0;
-    border-top: 2px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: #EEEEEE);
+    border-top: 2px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--border-color));
   }
 
   table {
     border-collapse: collapse;
     width: auto;
-    border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: #D7DEF8);
+    border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--border-color));
 
     th,
     td {
-      border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: #D7DEF8);
+      border: 1px solid if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--border-color));
       padding: 5px;
     }
 
     th {
-      background-color: if(sass($is-user): transparent; else: #EEEEEE);
+      background-color: if(sass($is-user): transparent; else: var(--code-bg));
     }
 
     td {
@@ -675,8 +878,9 @@ watch(messages, async () => {
   }
 
   code {
-    border-radius: 4px;
-    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    padding: 2px 5px;
+    font-size: 0.875rem;
     background-color: if(sass($is-user): rgba(255, 255, 255, 0.3); else: var(--code-bg, #EEEEEE));
     color: if(sass($is-user): #FFF; else: var(--code-text, #ffffff));
   }
@@ -688,7 +892,8 @@ watch(messages, async () => {
 
     >code {
       display: block;
-      padding: 12px;
+      padding: 12px 16px;
+      font-size: 0.875rem;
       background-color: if(sass($is-user): rgba(255, 255, 255, 0.9); else: var(--pre-bg, #f5f5f5));
       color: if(sass($is-user): #000000; else: var(--pre-text, #ffffff));
     }
@@ -715,8 +920,8 @@ watch(messages, async () => {
 // ============================================================
 .chatbox,
 .input-block {
-  width: 50%;
-  min-width: 700px;
+  width: 80%;
+  min-width: 0;
   margin: 0 auto;
 
   @media (max-width: 960px) {
@@ -737,7 +942,7 @@ watch(messages, async () => {
 }
 
 .input-block {
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   background: rgba(var(--v-theme-surface)) !important;
   border: 1px solid var(--border-color, #DCDCDC);
 
@@ -755,7 +960,7 @@ watch(messages, async () => {
       }
 
       .v-icon {
-        color: #666;
+        color: var(--text-muted);
       }
     }
   }
@@ -764,7 +969,7 @@ watch(messages, async () => {
 .chat-bot,
 .chat-user {
   font-style: normal;
-  line-height: 1.75rem;
+  line-height: 1.65;
   max-width: 700px;
   min-width: 0;
 
@@ -773,11 +978,22 @@ watch(messages, async () => {
   }
 }
 
+.bot-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
 .chat-bot {
   background: var(--bot-bg, #FFF);
   color: var(--bot-text, #333);
-  border-radius: 20px 20px 20px 3px;
+  border-radius: 3px var(--radius-md) var(--radius-md) var(--radius-md);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   min-height: 46px;
+  width: fit-content;
 
   .bot-content {
     @include markdown-body(false);
@@ -789,10 +1005,11 @@ watch(messages, async () => {
 }
 
 .chat-user {
-  background: #DB2627;
+  background: rgb(var(--v-theme-primary));
   color: #FFF;
   font-weight: 700;
-  border-radius: 20px 20px 3px 20px;
+  border-radius: var(--radius-md) var(--radius-md) 3px var(--radius-md);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
   min-height: 32px;
 
   .user-content {
@@ -801,6 +1018,20 @@ watch(messages, async () => {
 
   a {
     color: #FFF !important;
+  }
+}
+
+.user-msg-row {
+  .user-actions-wrap {
+    flex-shrink: 0;
+    align-self: center;
+    margin-right: 6px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  &:hover .user-actions-wrap {
+    opacity: 1;
   }
 }
 
@@ -815,7 +1046,7 @@ watch(messages, async () => {
 
   .policy,
   .kingston {
-    color: #DB2627;
+    color: rgb(var(--v-theme-primary));
     text-decoration: none;
   }
 }
@@ -836,7 +1067,7 @@ watch(messages, async () => {
 // 3. UI Elements (UI 元素)
 // ============================================================
 .bar-nav-icon {
-  color: var(--nav-icon-color, rgb(var(--v-theme-drakPurple))) !important;
+  color: var(--nav-icon-color, rgb(var(--v-theme-darkPurple))) !important;
 }
 
 .mermaid-wrap {
@@ -852,12 +1083,12 @@ watch(messages, async () => {
   align-items: center;
   gap: 5px;
   padding: 5px 10px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 500;
-  color: #555;
+  color: var(--text-muted);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -874,17 +1105,17 @@ watch(messages, async () => {
   }
 
   &:hover {
-    background: #fff;
-    border-color: #DB2627;
-    color: #DB2627;
-    box-shadow: 0 4px 16px rgba(219, 38, 39, 0.15);
+    background: rgb(var(--v-theme-surface));
+    border-color: rgb(var(--v-theme-primary));
+    color: rgb(var(--v-theme-primary));
+    box-shadow: 0 4px 16px rgba(var(--v-theme-primary), 0.15);
   }
 }
 
 .mermaid-context-menu {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   padding: 4px;
   min-width: 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -897,9 +1128,9 @@ watch(messages, async () => {
     width: 100%;
     padding: 5px 10px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: #555;
+    color: var(--text-muted);
     font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
@@ -907,8 +1138,8 @@ watch(messages, async () => {
     transition: color 0.15s ease, background 0.15s ease;
 
     &:hover {
-      background: rgba(219, 38, 39, 0.06);
-      color: #DB2627;
+      background: rgba(var(--v-theme-primary), 0.06);
+      color: rgb(var(--v-theme-primary));
     }
   }
 }
@@ -921,6 +1152,43 @@ watch(messages, async () => {
   flex: 1 1 0;
 }
 
+// Code copy button
+pre {
+  position: relative;
+
+  .code-copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      background: rgba(var(--v-theme-primary), 0.1);
+      color: rgb(var(--v-theme-primary));
+    }
+
+    &--copied {
+      color: rgb(var(--v-theme-success));
+    }
+  }
+
+  &:hover .code-copy-btn {
+    opacity: 1;
+  }
+}
+
 // PulseLoader
 .pulse-loader {
   display: inline-flex;
@@ -931,7 +1199,7 @@ watch(messages, async () => {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #db2627;
+    background: rgb(var(--v-theme-primary));
     animation: pulse-bounce 1.4s infinite ease-in-out;
 
     @for $i from 1 through 3 {
@@ -958,32 +1226,9 @@ watch(messages, async () => {
 }
 
 // ============================================================
-// 4. Theme System (統一的主題控管)
+// 4. Theme System (Component-specific dark overrides)
 // ============================================================
-:root {
-  --text-muted: #666;
-  --border-color: #DCDCDC;
-  --bot-bg: #FFF;
-  --bot-text: #333;
-  --code-bg: #EEEEEE;
-  --code-text: #000;
-  --pre-bg: #f5f5f5;
-  --pre-text: #000;
-  --nav-icon-color: rgb(var(--v-theme-drakPurple));
-}
-
 .v-theme--dark {
-  --text-muted: #aaa;
-  --border-color: #3a3d55;
-  --bot-bg: #2a2d3e;
-  --bot-text: #e0e0e0;
-  --code-bg: #3a3d50;
-  --code-text: #fff;
-  --pre-bg: #313447;
-  --pre-text: #fff;
-  --nav-icon-color: white;
-
-  // 這裡一次性處理深色模式的切換
   .chat-bg-light {
     display: none;
   }
@@ -993,7 +1238,7 @@ watch(messages, async () => {
   }
 
   .mermaid-context-menu-item:hover {
-    background: #3a3d50;
+    background: var(--code-bg);
   }
 }
 

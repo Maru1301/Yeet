@@ -106,7 +106,7 @@ function selectPrompt(item: PromptCard) {
 }
 
 .prompt-subtitle {
-  color: #666;
+  color: var(--text-muted, #666);
   white-space: normal;
   font-weight: 400;
   font-size: 14px;
