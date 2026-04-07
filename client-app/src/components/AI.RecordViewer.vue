@@ -13,7 +13,7 @@
                 department ? department : "Workspace" }}</span>
             </div>
             <div class="d-flex subtitleGPT chat-bg">
-              <span class="text-red-darken-2 font-weight-medium">Conversation Records</span>
+              <span class="text-primary font-weight-medium">Conversation Records</span>
             </div>
           </v-list-item>
         </v-list>
@@ -42,31 +42,47 @@
           <div ref="chatBox"
                class="chatbox mt-6">
             <div class="mx-2">
-              <div v-for="record in filteredRecords"
-                   :key="record.id">
+              <div v-for="(record, index) in filteredRecords"
+                   :key="record.id ?? index">
                 <div v-if="record.Role?.Label == 'user' && record.Items && record.Items[0]?.Text"
-                     class="d-flex justify-end align-end mb-3">
-                  <div class="d-flex flex-column align-end chat-user pt-2 pb-2 pr-4 pl-4">
-                    <div v-if="record.Items && record.Items[0]?.Text"
-                         class="user-content"
-                         v-html="convertMarkdown(record.Items[0].Text)">
+                     class="d-flex justify-end align-end mb-3 user-record-row">
+                  <div v-if="record.Items[0].Text"
+                       class="user-actions-wrap">
+                    <ChatActions :chatId="conversationId"
+                                 :message="{ markdownContent: record.Items[0].Text }"
+                                 :useAgent="isAgentRecord"
+                                 :hideShare="true" />
+                  </div>
+                  <div class="d-flex flex-column"
+                       style="min-width: 0">
+                    <div class="d-flex flex-column align-end chat-user pt-2 pb-2 pr-4 pl-4">
+                      <div v-if="record.Items && record.Items[0]?.Text"
+                           class="user-content"
+                           v-html="convertMarkdown(record.Items[0].Text)">
+                      </div>
+                      <img v-if="record.image"
+                           :src="record.image"
+                           alt="User's Image"
+                           class="mt-2">
                     </div>
-                    <img v-if="record.image"
-                         :src="record.image"
-                         alt="User's Image"
-                         class="mt-2">
                   </div>
                 </div>
                 <div v-else-if="record.Role?.Label == 'assistant'"
-                     class="d-flex flex-column mb-3">
-                  <div class="d-flex justify-start align-end mb-1">
-                    <img class="mr-3"
-                         width="35"
-                         :src="kingAvatar"
-                         alt="AI Chat" />
+                     class="d-flex mb-3">
+                  <img class="mr-3 bot-avatar"
+                       :src="yeetAvatar"
+                       alt="AI Chat" />
+                  <div class="d-flex flex-column"
+                       style="min-width: 0; flex: 1">
                     <div class="d-flex flex-column align-end chat-bot pt-2 pb-3 pr-4 pl-4">
                       <div class="bot-content"
                            v-html="convertMarkdown(record.Items && record.Items[0] ? record.Items[0].Text : '')"></div>
+                    </div>
+                    <div class="d-flex justify-end mt-1">
+                      <ChatActions :chatId="conversationId"
+                                   :message="{ markdownContent: record.Items?.[0]?.Text ?? '' }"
+                                   :useAgent="isAgentRecord"
+                                   :hideShare="true" />
                     </div>
                   </div>
                 </div>
@@ -91,10 +107,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAppStore } from '../store/index';
 import { gptService } from '../global/gpt.api.service';
 import { renderMermaidWithDownloads } from '../utils/mermaidDownload';
+import ChatActions from './AI.ChatActions.vue';
 import markdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 
-const kingAvatar = new URL('../assets/king-avator.svg', import.meta.url).href;
+const yeetAvatar = new URL('../assets/yeet.png', import.meta.url).href;
 
 const route = useRoute();
 const router = useRouter();
@@ -116,6 +133,11 @@ interface ChatRecord {
 
 const records = ref<ChatRecord[]>([]);
 const isLoading = ref(true);
+
+const conversationId = computed(() => route.query.conversationId as string ?? '');
+const isAgentRecord = computed(() =>
+  typeof route.query.isAgent === 'string' && route.query.isAgent.toLowerCase() === 'true'
+);
 
 const department = computed(() => route.params.department as string || '');
 
@@ -486,6 +508,26 @@ onMounted(async () => {
     background: rgba(var(--v-theme-primary), 0.06);
     color: rgb(var(--v-theme-primary));
   }
+}
+
+.bot-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.user-record-row {
+  .user-actions-wrap {
+    flex-shrink: 0;
+    align-self: center;
+    margin-right: 6px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  &:hover .user-actions-wrap { opacity: 1; }
 }
 
 .chat-footer {
