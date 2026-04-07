@@ -13,7 +13,6 @@ export interface OutlineEntry {
 export interface OutlineState {
   conversationId: string | null;
   entries: OutlineEntry[];
-  visible: boolean;
   activeIndex: number;
 }
 
@@ -21,15 +20,10 @@ export const useOutlineStore = defineStore('outline', {
   state: (): OutlineState => ({
     conversationId: null,
     entries: [],
-    visible: false,
     activeIndex: 0,
   }),
 
   actions: {
-    setVisible(v: boolean) {
-      this.visible = v;
-    },
-
     setActiveIndex(i: number) {
       this.activeIndex = i;
     },

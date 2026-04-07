@@ -437,7 +437,7 @@ function handleOutlineDown() {
 }
 
 function updateOutlineActiveIndex() {
-  if (!outlineStore.visible || !chatBox.value) return;
+  if (!chatBox.value || outlineStore.entries.length === 0) return;
   const box = chatBox.value;
   const mid = box.getBoundingClientRect().top + box.getBoundingClientRect().height / 2;
   const els = box.querySelectorAll('[data-message-index]');
