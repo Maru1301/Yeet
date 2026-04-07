@@ -439,12 +439,14 @@ function handleOutlineDown() {
 function updateOutlineActiveIndex() {
   if (!chatBox.value || outlineStore.entries.length === 0) return;
   const box = chatBox.value;
-  const mid = box.getBoundingClientRect().top + box.getBoundingClientRect().height / 2;
+  // Use top of chatbox + small buffer instead of midpoint so that short
+  // messages don't cause the following message to be detected as active.
+  const threshold = box.getBoundingClientRect().top + 24;
   const els = box.querySelectorAll('[data-message-index]');
   let active = 0;
   els.forEach((el) => {
     const rect = el.getBoundingClientRect();
-    if (rect.top <= mid) {
+    if (rect.top <= threshold) {
       active = Number((el as HTMLElement).dataset.messageIndex ?? 0);
     }
   });
