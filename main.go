@@ -73,9 +73,11 @@ type gGenerateResp struct {
 // ── main ──────────────────────────────────────────────────────────────────────
 
 func main() {
-	apiKey := os.Getenv("API_KEY")
+	fmt.Print("Please enter your Google AI Studio API key (required for Gemini access): ")
+	var apiKey string
+	fmt.Scanln(&apiKey)
 	if apiKey == "" {
-		log.Fatal("API_KEY environment variable is required (Google AI Studio API key)")
+		log.Fatal("API_KEY variable is required (Google AI Studio API key)")
 	}
 	port := getEnv("PORT", "8080")
 	dbPath := getEnv("DB_PATH", "yeet.db")
@@ -204,49 +206,21 @@ func handleSend(apiKey string) http.HandlerFunc {
 			return
 		}
 
-		conv, err := getConversation(req.ConversationID)
+		history, _, err := getMessagesPaged(req.ConversationID, 0, 10)
 		if err != nil {
-			log.Printf("getConversation: %v", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		if conv == nil {
-			// Auto-create if not found (e.g. client sent a message before /start)
-			model := req.Model
-			if model == "" {
-				model = defaultModel
-			}
-			if err := createConversation(req.ConversationID, model); err != nil {
-				log.Printf("createConversation: %v", err)
-				http.Error(w, "internal error", http.StatusInternalServerError)
-				return
-			}
-		} else if req.Model != "" && req.Model != conv.Model {
-			if err := updateModel(conv.ID, req.Model); err != nil {
-				log.Printf("updateModel: %v", err)
-			}
-		}
-
-		if err := appendMessage(req.ConversationID, "user", req.Content); err != nil {
-			log.Printf("appendMessage user: %v", err)
+			log.Printf("getMessagesPaged: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 
-		msgs, err := getMessages(req.ConversationID)
-		if err != nil {
-			log.Printf("getMessages: %v", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
+		currentUserMsg := message{Role: "user", Content: req.Content}
+		history = append(history, currentUserMsg)
+
+		go appendMessage(req.ConversationID, "user", req.Content)
 
 		model := req.Model
 		if model == "" {
-			if conv != nil {
-				model = conv.Model
-			} else {
-				model = defaultModel
-			}
+			model = defaultModel
 		}
 
 		// Set SSE headers before any write so they are included in the 200 response
@@ -254,12 +228,10 @@ func handleSend(apiKey string) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("X-Accel-Buffering", "no")
 
-		responseText := streamGemini(w, msgs, model, apiKey)
+		responseText := streamGemini(w, history, model, apiKey)
 
 		if responseText != "" {
-			if err := appendMessage(req.ConversationID, "model", responseText); err != nil {
-				log.Printf("appendMessage model: %v", err)
-			}
+			go appendMessage(req.ConversationID, "model", responseText)
 		}
 	}
 }
@@ -713,9 +685,9 @@ func handleOutline() http.HandlerFunc {
 		parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
 		conversationID := parts[len(parts)-1]
 
-		msgs, err := getMessages(conversationID)
+		msgs, err := getOutlineMessages(conversationID)
 		if err != nil {
-			log.Printf("handleOutline getMessages: %v", err)
+			log.Printf("handleOutline getOutlineMessages: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}

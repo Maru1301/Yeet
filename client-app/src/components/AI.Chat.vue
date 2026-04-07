@@ -14,7 +14,7 @@
     <v-card v-if="!showPromptManager"
             flat
             class="fill-height d-flex flex-column pa-0 flex-1-1-0"
-            style="min-width: 0;">
+            style="min-width: 120px;">
       <v-card-text class="chat-bg d-flex align-center px-4 py-1 flex-grow-0 pb-4">
         <v-app-bar-nav-icon density="compact"
                             class="bar-nav-icon"
@@ -32,12 +32,14 @@
       <div class="chat-bg d-flex flex-column flex-grow-1 overflow-hidden align-center"
            style="position: relative;">
 
-        <ChatOutline @navigate="navigateToMessage" />
+        <ChatOutline @navigate="navigateToMessage"
+                     @up="handleOutlineUp"
+                     @down="handleOutlineDown" />
 
         <div ref="chatBox"
              class="chatbox flex-grow-1 overflow-y-auto pa-4">
           <div class="mx-auto"
-               style="width: 100%;">
+               style="width: 50%;">
             <div class="d-flex flex-column align-center">
               <div class="d-flex flex-column align-center">
                 <img class="chat-bg-img chat-bg-light"
@@ -124,7 +126,7 @@
           </div>
         </div>
 
-        <div class="d-flex flex-column align-center mt-3" style="width: 100%;">
+        <div class="d-flex flex-column align-center mt-3" style="width: 50%;">
           <div class="input-block">
             <div class="d-flex ml-2 mr-2 align-end">
               <Textarea ref="textareaRef"
@@ -243,7 +245,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
-import { useAppStore } from '../store/index';
 import { gptService } from '../global/gpt.api.service';
 import { renderMermaidWithDownloads } from '../utils/mermaidDownload';
 import { SummaryPrompt } from './prompts/SummaryPrompt';
@@ -351,6 +352,13 @@ const md = (() => {
   return mdInstance;
 })();
 
+const mdUser = markdownit({
+  html: false, // 關鍵：這會把 <template> 轉成 &lt;template&gt;
+  linkify: true,
+  breaks: true,
+  typographer: true,
+});
+
 // Computed
 const account = computed(() => 'Maru Lin'); //todo: use real account info
 
@@ -414,6 +422,20 @@ function navigateToMessage(index: number) {
   }
 }
 
+function handleOutlineUp() {
+  if (outlineStore.activeIndex > 0) {
+    const newIndex = outlineStore.activeIndex - 1;
+    navigateToMessage(newIndex);
+  }
+}
+
+function handleOutlineDown() {
+  if (outlineStore.activeIndex < outlineStore.entries.length - 1) {
+    const newIndex = outlineStore.activeIndex + 1;
+    navigateToMessage(newIndex);
+  }
+}
+
 function updateOutlineActiveIndex() {
   if (!outlineStore.visible || !chatBox.value) return;
   const box = chatBox.value;
@@ -444,8 +466,8 @@ async function selectedPrompt(item: { prompt: string; }, autoSend = false) {
   }
 }
 
-function toHtml(text: string): string {
-  return md.render(text).replace(/<a /g, '<a target="_blank" ');
+function toHtml(text: string, mdInstance = md): string {
+  return mdInstance.render(text).replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
 }
 
 async function send(firstPrompt = true) {
@@ -458,7 +480,7 @@ async function send(firstPrompt = true) {
   if (!prompt) return;
 
   if (firstPrompt) {
-    const userConversation: any = { role: 'user', content: toHtml(prompt) };
+    const userConversation: any = { role: 'user', content: toHtml(prompt, mdUser) };
     if (fileDataUri.value?.startsWith('data:image')) userConversation.image = fileDataUri.value;
     messages.value.push(userConversation);
     outlineStore.appendEntry(prompt, 'user');
@@ -677,7 +699,7 @@ function toMessage(record: any) {
   const imageDataUri = imageItem ? `data:${imageItem.MimeType};base64,${imageItem.Data}` : '';
   return {
     role: record.Role.Label,
-    content: toHtml(firstText),
+    content: record.Role.Label === 'user' ? toHtml(firstText, mdUser) : toHtml(firstText),
     markdownContent: firstText,
     image: imageDataUri,
   };
@@ -687,6 +709,7 @@ function toMessage(record: any) {
 
 async function initRecords(conversation: any) {
   if (!conversation || !conversation.conversationId) return;
+  outlineStore.activeIndex = -1;
 
   const isAgent = !!conversation.isAgent;
   const conversationId = conversation.conversationId;
@@ -712,8 +735,10 @@ async function initRecords(conversation: any) {
       hasMoreHistory.value = api?.data?.hasMore ?? false;
       historyOffset.value = messages.value.length;
     }
-    nextTick(() => scrollDown());
-    outlineStore.fetchEntries(conversationId);
+    
+    await outlineStore.fetchEntries(conversationId);
+    const newIndex = outlineStore.entries.length - 1;
+    navigateToMessage(newIndex);
   } catch (error) {
     console.error('Error fetching records:', error);
   }
@@ -920,7 +945,7 @@ watch(messages, async () => {
 // ============================================================
 .chatbox,
 .input-block {
-  width: 80%;
+  width: 100%;
   min-width: 0;
   margin: 0 auto;
 

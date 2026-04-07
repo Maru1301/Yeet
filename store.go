@@ -108,6 +108,26 @@ func getMessages(conversationID string) ([]message, error) {
 	return msgs, rows.Err()
 }
 
+func getOutlineMessages(conversationID string) ([]message, error) {
+	rows, err := db.Query(
+		`SELECT role, substr(content, 1, 100) FROM messages WHERE conversation_id = ? ORDER BY id`,
+		conversationID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var msgs []message
+	for rows.Next() {
+		var m message
+		if err := rows.Scan(&m.Role, &m.Content); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
+}
+
 // getMessagesPaged returns up to limit messages ending at the tail of the
 // conversation, skipping offset messages from the end. Messages are returned
 // in chronological order. hasMore is true when older messages still exist.
