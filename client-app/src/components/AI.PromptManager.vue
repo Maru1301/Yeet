@@ -40,37 +40,39 @@
         <!-- Left Panel -->
         <div class="left-panel pa-4"
              style="width: 50%;">
-          <div class="mb-4">
-            <span class="section-title">Title</span>
-            <v-text-field v-model="form.title"
-                          placeholder="Enter your prompt title here..."
+          <div class="left-panel-body">
+            <div class="mb-4">
+              <span class="section-title">Title</span>
+              <v-text-field v-model="form.title"
+                            placeholder="Enter your prompt title here..."
+                            single-line
+                            hide-details
+                            variant="solo"
+                            flat
+                            rounded
+                            density="compact"
+                            class="mt-3 white-field text-indigo-darken-1"></v-text-field>
+            </div>
+
+            <div>
+              <span class="section-title">Prompt</span>
+              <v-textarea v-model="form.prompt"
+                          :disabled="optimizing"
+                          placeholder="Enter your prompt content here..."
+                          rows="15"
+                          no-resize
                           single-line
                           hide-details
                           variant="solo"
                           flat
                           rounded
                           density="compact"
-                          class="mt-3 white-field text-indigo-darken-1"></v-text-field>
+                          clearable
+                          class="mt-3 white-field text-indigo-darken-1"></v-textarea>
+            </div>
           </div>
 
-          <div>
-            <span class="section-title">Prompt</span>
-            <v-textarea v-model="form.prompt"
-                        :disabled="optimizing"
-                        placeholder="Enter your prompt content here..."
-                        rows="15"
-                        no-resize
-                        single-line
-                        hide-details
-                        variant="solo"
-                        flat
-                        rounded
-                        density="compact"
-                        clearable
-                        class="mt-3 white-field text-indigo-darken-1"></v-textarea>
-          </div>
-
-          <div class="d-flex justify-space-between align-center mt-5">
+          <div class="d-flex justify-space-between align-center mt-3 left-panel-actions">
             <div>
               <v-tooltip color="blue-darken-4"
                          location="bottom">
@@ -367,6 +369,22 @@ onMounted(async () => {
   height: auto;
 }
 
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.left-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.left-panel-actions {
+  flex-shrink: 0;
+}
+
 .prompt-manager {
   height: calc(100vh - 60px);
   width: 100%;
@@ -382,11 +400,13 @@ onMounted(async () => {
 
 .prompt-content {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
 .responsive-container {
   width: 100%;
+  height: 100%;
 }
 
 @media (min-width: 1024px) {

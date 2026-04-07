@@ -95,6 +95,10 @@ func main() {
 	mux.HandleFunc("/chat/generate-topic", cors(handleGenTopic(apiKey)))
 	mux.HandleFunc("/chat/record/", cors(handleRecord()))
 	mux.HandleFunc("/chat/outline/", cors(handleOutline()))
+	mux.HandleFunc("/chat/prompts/list", cors(handlePromptList()))
+	mux.HandleFunc("/chat/prompts/upsert", cors(handlePromptUpsert()))
+	mux.HandleFunc("/chat/prompts/delete", cors(handlePromptDelete()))
+	mux.HandleFunc("/chat/prompts/import", cors(handlePromptImport()))
 	mux.HandleFunc("/agent/", cors(handleStub()))
 	mux.HandleFunc("/live/voices", cors(handleLiveVoices()))
 	mux.HandleFunc("/live/ws", handleLiveWS(apiKey))
@@ -705,6 +709,72 @@ func handleOutline() http.HandlerFunc {
 			})
 		}
 		jsonResp(w, map[string]any{"entries": entries})
+	}
+}
+
+func handlePromptList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		prompts, err := listPrompts()
+		if err != nil {
+			log.Printf("handlePromptList: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		jsonResp(w, map[string]any{"prompts": prompts})
+	}
+}
+
+func handlePromptUpsert() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var p promptRow
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		id, err := upsertPromptRow(p)
+		if err != nil {
+			log.Printf("handlePromptUpsert: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		jsonResp(w, map[string]string{"id": id})
+	}
+}
+
+func handlePromptDelete() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID string `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if err := deletePromptRow(req.ID); err != nil {
+			log.Printf("handlePromptDelete: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		jsonResp(w, map[string]string{})
+	}
+}
+
+func handlePromptImport() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Prompts []promptRow `json:"prompts"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		added, updated, skipped, err := importPromptRows(req.Prompts)
+		if err != nil {
+			log.Printf("handlePromptImport: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		jsonResp(w, map[string]int{"added": added, "updated": updated, "skipped": skipped})
 	}
 }
 

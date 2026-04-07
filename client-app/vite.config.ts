@@ -42,6 +42,7 @@ export default defineConfig(({ mode }) => {
       ROOT_FOLDER: nowConfig.rootFolder,
       PROXY_API_URL: nowConfig.proxyApiUrl,
       ENV: nowConfig.env,
+      AGENT_NAME: customConfig.system,
     },
 
     server: {
