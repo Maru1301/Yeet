@@ -61,7 +61,13 @@
                    :key="index"
                    :data-message-index="index">
                 <div v-if="message.role == 'user'"
-                     class="d-flex justify-end align-end mb-3">
+                     class="d-flex justify-end align-end mb-3 user-msg-row">
+                  <div v-if="message.content"
+                       class="user-actions-wrap">
+                    <ChatActions :chatId="chatId!"
+                                 :message="message"
+                                 :useAgent="useAgent" />
+                  </div>
                   <div class="d-flex flex-column"
                        style="min-width: 0">
                     <div class="d-flex flex-column align-end chat-user pt-2 pb-2 pr-4 pl-4">
@@ -73,12 +79,6 @@
                            alt="User's Image"
                            class="mt-2"
                            style="max-width: 100%; border-radius: 12px;">
-                    </div>
-                    <div v-if="message.content"
-                         class="d-flex justify-end mt-1">
-                      <ChatActions :chatId="chatId!"
-                                   :message="message"
-                                   :useAgent="useAgent" />
                     </div>
                   </div>
                 </div>
@@ -1018,6 +1018,20 @@ watch(messages, async () => {
 
   a {
     color: #FFF !important;
+  }
+}
+
+.user-msg-row {
+  .user-actions-wrap {
+    flex-shrink: 0;
+    align-self: center;
+    margin-right: 6px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  &:hover .user-actions-wrap {
+    opacity: 1;
   }
 }
 
