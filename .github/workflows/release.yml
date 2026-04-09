@@ -41,17 +41,28 @@ jobs:
           CGO_ENABLED: 0
         run: go build -o Yeet/yeet.exe .
 
+      - name: Create launch script
+        run: |
+          cat > Yeet/start.bat << 'EOF'
+          @echo off
+          set /p API_KEY="Enter your Google AI Studio API key: "
+          yeet.exe
+          EOF
+
+      - name: Package release folder
+        run: zip -r Yeet.zip Yeet/
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v$(date +'%Y.%m.%d')-${{ github.run_number }}"
-          gh release create "$TAG" Yeet/yeet.exe \
+          gh release create "$TAG" Yeet.zip \
             --title "Release $TAG" \
             --notes "**PR #${{ github.event.pull_request.number }}** — ${{ github.event.pull_request.title }}
 
           ### Usage
-          1. Download \`yeet.exe\`
+          1. Download and extract \`Yeet.zip\`
           2. Set your Google AI Studio key: \`\$env:API_KEY=\"AIza...\"\`
           3. Run: \`.\yeet.exe\`
           4. Open \`http://localhost:8080\` in your browser"
