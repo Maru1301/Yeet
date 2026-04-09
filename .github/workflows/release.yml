@@ -46,7 +46,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v$(date +'%Y.%m.%d')-${{ github.run_number }}"
-          gh release create "$TAG" yeet.exe \
+          gh release create "$TAG" Yeet/yeet.exe \
             --title "Release $TAG" \
             --notes "**PR #${{ github.event.pull_request.number }}** — ${{ github.event.pull_request.title }}
 
