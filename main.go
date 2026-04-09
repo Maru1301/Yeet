@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -11,10 +13,17 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
+	"os/exec"
+	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -73,15 +82,29 @@ type gGenerateResp struct {
 // ── main ──────────────────────────────────────────────────────────────────────
 
 func main() {
-	apiKey := os.Getenv("API_KEY")
+	fmt.Print("Please enter your Google AI Studio API key (required for Gemini access): ")
+	var apiKey string
+	fmt.Scanln(&apiKey)
 	if apiKey == "" {
-		log.Fatal("API_KEY environment variable is required (Google AI Studio API key)")
+		log.Fatal("API_KEY variable is required (Google AI Studio API key)")
 	}
 	port := getEnv("PORT", "8080")
 	dbPath := getEnv("DB_PATH", "yeet.db")
 
 	if err := initDB(dbPath); err != nil {
 		log.Fatalf("initDB: %v", err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	dev := getEnv("DEV", "") != ""
+	viteURL := getEnv("VITE_DEV_URL", "http://localhost:44493")
+
+	if dev {
+		if err := startViteDev(ctx, viteURL); err != nil {
+			log.Fatalf("startViteDev: %v", err)
+		}
 	}
 
 	mux := http.NewServeMux()
@@ -93,13 +116,29 @@ func main() {
 	mux.HandleFunc("/chat/generate-topic", cors(handleGenTopic(apiKey)))
 	mux.HandleFunc("/chat/record/", cors(handleRecord()))
 	mux.HandleFunc("/chat/outline/", cors(handleOutline()))
+	mux.HandleFunc("/chat/prompts/list", cors(handlePromptList()))
+	mux.HandleFunc("/chat/prompts/upsert", cors(handlePromptUpsert()))
+	mux.HandleFunc("/chat/prompts/delete", cors(handlePromptDelete()))
+	mux.HandleFunc("/chat/prompts/import", cors(handlePromptImport()))
 	mux.HandleFunc("/agent/", cors(handleStub()))
 	mux.HandleFunc("/live/voices", cors(handleLiveVoices()))
 	mux.HandleFunc("/live/ws", handleLiveWS(apiKey))
-	mux.HandleFunc("/", handleStatic())
+	if dev {
+		mux.HandleFunc("/", handleDevProxy(viteURL))
+	} else {
+		mux.HandleFunc("/", handleStatic())
+	}
 
-	log.Printf("listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	srv := &http.Server{Addr: ":" + port, Handler: mux}
+	go func() {
+		<-ctx.Done()
+		srv.Shutdown(context.Background()) //nolint:errcheck
+	}()
+
+	log.Printf("listening on :%s (dev=%v)", port, dev)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
 }
 
 // ── middleware ────────────────────────────────────────────────────────────────
@@ -142,21 +181,21 @@ func handleStart(_ string) http.HandlerFunc {
 	}
 }
 
-func handleModels(_ string) http.HandlerFunc {
+func handleModels(apiKey string) http.HandlerFunc {
 	type model struct {
 		Name        string `json:"name"`
 		DisplayName string `json:"displayName"`
 		IsAgent     bool   `json:"isAgent"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		// url := fmt.Sprintf("%s?key=%s&pageSize=1000", geminiBase, apiKey)
-		// resp, err := http.Get(url)
-		// if err != nil {
-		// 	log.Printf("listModels: %v", err)
-		// 	http.Error(w, "failed to list models", http.StatusBadGateway)
-		// 	return
-		// }
-		// defer resp.Body.Close()
+		url := fmt.Sprintf("%s?key=%s&pageSize=1000", geminiBase, apiKey)
+		resp, err := http.Get(url)
+		if err != nil {
+			log.Printf("listModels: %v", err)
+			http.Error(w, "failed to list models", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
 
 		var result struct {
 			Models []struct {
@@ -165,33 +204,23 @@ func handleModels(_ string) http.HandlerFunc {
 				SupportedMethods []string `json:"supportedGenerationMethods"`
 			} `json:"models"`
 		}
-		// if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		// 	log.Printf("listModels decode: %v", err)
-		// 	http.Error(w, "failed to decode model list", http.StatusInternalServerError)
-		// 	return
-		// }
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			log.Printf("listModels decode: %v", err)
+			http.Error(w, "failed to decode model list", http.StatusInternalServerError)
+			return
+		}
 
-		result.Models = append(result.Models, struct {
-			Name             string   `json:"name"`
-			DisplayName      string   `json:"displayName"`
-			SupportedMethods []string `json:"supportedGenerationMethods"`
-		}{
-			Name:             "gemini-2.5-flash",
-			DisplayName:      "Gemini 2.5 Flash",
-			SupportedMethods: []string{"streamGenerateContent"},
-		})
-
-		//  var models []model
-		// for _, m := range result.Models {
-		// 	for _, method := range m.SupportedMethods {
-		// 		if method == "streamGenerateContent" {
-		// 			// name is "models/gemini-xxx" — strip the prefix
-		// 			name := strings.TrimPrefix(m.Name, "models/")
-		// 			models = append(models, model{Name: name, DisplayName: m.DisplayName})
-		// 			break
-		// 		}
-		// 	}
-		// }
+		var models []model
+		for _, m := range result.Models {
+			for _, method := range m.SupportedMethods {
+				if method == "streamGenerateContent" {
+					// name is "models/gemini-xxx" — strip the prefix
+					name := strings.TrimPrefix(m.Name, "models/")
+					models = append(models, model{Name: name, DisplayName: m.DisplayName})
+					break
+				}
+			}
+		}
 		jsonResp(w, result.Models)
 	}
 }
@@ -204,49 +233,23 @@ func handleSend(apiKey string) http.HandlerFunc {
 			return
 		}
 
-		conv, err := getConversation(req.ConversationID)
+		history, _, err := getMessagesPaged(req.ConversationID, 0, 10)
 		if err != nil {
-			log.Printf("getConversation: %v", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		if conv == nil {
-			// Auto-create if not found (e.g. client sent a message before /start)
-			model := req.Model
-			if model == "" {
-				model = defaultModel
-			}
-			if err := createConversation(req.ConversationID, model); err != nil {
-				log.Printf("createConversation: %v", err)
-				http.Error(w, "internal error", http.StatusInternalServerError)
-				return
-			}
-		} else if req.Model != "" && req.Model != conv.Model {
-			if err := updateModel(conv.ID, req.Model); err != nil {
-				log.Printf("updateModel: %v", err)
-			}
-		}
-
-		if err := appendMessage(req.ConversationID, "user", req.Content); err != nil {
-			log.Printf("appendMessage user: %v", err)
+			log.Printf("getMessagesPaged: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 
-		msgs, err := getMessages(req.ConversationID)
-		if err != nil {
-			log.Printf("getMessages: %v", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
+		currentUserMsg := message{Role: "user", Content: req.Content}
+		history = append(history, currentUserMsg)
+
+		go appendMessage(req.ConversationID, "user", req.Content)
 
 		model := req.Model
 		if model == "" {
-			if conv != nil {
-				model = conv.Model
-			} else {
-				model = defaultModel
-			}
+			model = defaultModel
+		} else {
+			model = strings.TrimPrefix(model, "models/")
 		}
 
 		// Set SSE headers before any write so they are included in the 200 response
@@ -254,12 +257,10 @@ func handleSend(apiKey string) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("X-Accel-Buffering", "no")
 
-		responseText := streamGemini(w, msgs, model, apiKey)
+		responseText := streamGemini(w, history, model, apiKey)
 
 		if responseText != "" {
-			if err := appendMessage(req.ConversationID, "model", responseText); err != nil {
-				log.Printf("appendMessage model: %v", err)
-			}
+			go appendMessage(req.ConversationID, "model", responseText)
 		}
 	}
 }
@@ -713,9 +714,9 @@ func handleOutline() http.HandlerFunc {
 		parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/"), "/")
 		conversationID := parts[len(parts)-1]
 
-		msgs, err := getMessages(conversationID)
+		msgs, err := getOutlineMessages(conversationID)
 		if err != nil {
-			log.Printf("handleOutline getMessages: %v", err)
+			log.Printf("handleOutline getOutlineMessages: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -736,10 +737,138 @@ func handleOutline() http.HandlerFunc {
 	}
 }
 
+func handlePromptList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		prompts, err := listPrompts()
+		if err != nil {
+			log.Printf("handlePromptList: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		jsonResp(w, map[string]any{"prompts": prompts})
+	}
+}
+
+func handlePromptUpsert() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var p promptRow
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		id, err := upsertPromptRow(p)
+		if err != nil {
+			log.Printf("handlePromptUpsert: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		jsonResp(w, map[string]string{"id": id})
+	}
+}
+
+func handlePromptDelete() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID string `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if err := deletePromptRow(req.ID); err != nil {
+			log.Printf("handlePromptDelete: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		jsonResp(w, map[string]string{})
+	}
+}
+
+func handlePromptImport() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Prompts []promptRow `json:"prompts"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		added, updated, skipped, err := importPromptRows(req.Prompts)
+		if err != nil {
+			log.Printf("handlePromptImport: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		jsonResp(w, map[string]int{"added": added, "updated": updated, "skipped": skipped})
+	}
+}
+
 func handleStub() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "agent endpoints not implemented", http.StatusNotImplemented)
 	}
+}
+
+func startViteDev(ctx context.Context, viteURL string) error {
+	npm := "npm"
+	if runtime.GOOS == "windows" {
+		npm = "npm.cmd"
+	}
+	cmd := exec.CommandContext(ctx, npm, "run", "dev")
+	cmd.Dir = "client-app"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start vite: %w", err)
+	}
+	log.Printf("vite dev server starting (pid %d)…", cmd.Process.Pid)
+	go func() {
+		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
+			log.Printf("vite exited unexpectedly: %v", err)
+		}
+	}()
+
+	// Poll until Vite responds or context is cancelled
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		},
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if resp, err := client.Get(viteURL); err == nil {
+			resp.Body.Close()
+			log.Printf("vite dev server ready at %s", viteURL)
+			return nil
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	return fmt.Errorf("vite dev server did not become ready within 30s")
+}
+
+func handleDevProxy(viteURL string) http.HandlerFunc {
+	target, err := url.Parse(viteURL)
+	if err != nil {
+		log.Fatalf("invalid VITE_DEV_URL %q: %v", viteURL, err)
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	// Vite dev server uses a self-signed cert — skip verification for the internal hop
+	proxy.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+	}
+	// Preserve the target host so Vite's HMR WebSocket handshake succeeds
+	orig := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		orig(req)
+		req.Host = target.Host
+	}
+	return proxy.ServeHTTP
 }
 
 func handleStatic() http.HandlerFunc {

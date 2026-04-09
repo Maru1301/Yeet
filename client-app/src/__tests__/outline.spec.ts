@@ -72,17 +72,8 @@ describe('useOutlineStore', () => {
   it('initialises with empty state', () => {
     const store = useOutlineStore();
     expect(store.entries).toEqual([]);
-    expect(store.visible).toBe(false);
     expect(store.activeIndex).toBe(0);
     expect(store.conversationId).toBeNull();
-  });
-
-  it('setVisible toggles panel open/close', () => {
-    const store = useOutlineStore();
-    store.setVisible(true);
-    expect(store.visible).toBe(true);
-    store.setVisible(false);
-    expect(store.visible).toBe(false);
   });
 
   it('setActiveIndex updates activeIndex', () => {

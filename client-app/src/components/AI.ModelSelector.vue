@@ -1,5 +1,6 @@
 <template>
   <v-menu :min-width="0"
+          max-height="300px"
           transition="slide-y-transition"
           location="bottom end"
           origin="top end">

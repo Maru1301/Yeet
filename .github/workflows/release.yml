@@ -39,7 +39,7 @@ jobs:
           GOOS: windows
           GOARCH: amd64
           CGO_ENABLED: 0
-        run: go build -o yeet.exe .
+        run: go build -o Yeet/yeet.exe .
 
       - name: Create GitHub Release
         env:

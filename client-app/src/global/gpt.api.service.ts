@@ -91,6 +91,20 @@ const gptService = {
       return aiRequest.post(this.path(conversationId), null);
     },
   },
+  prompts: {
+    list: {
+      request() { return aiRequest.post('/chat/prompts/list', null); },
+    },
+    upsert: {
+      request(payload: unknown) { return aiRequest.post('/chat/prompts/upsert', payload); },
+    },
+    delete: {
+      request(payload: unknown) { return aiRequest.post('/chat/prompts/delete', payload); },
+    },
+    import: {
+      request(payload: unknown) { return aiRequest.post('/chat/prompts/import', payload); },
+    },
+  },
 };
 
 export { gptService };

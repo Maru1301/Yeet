@@ -50,6 +50,14 @@ func initDB(path string) error {
 			content         TEXT NOT NULL,
 			FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 		);
+		CREATE TABLE IF NOT EXISTS prompts (
+			id         TEXT PRIMARY KEY,
+			title      TEXT NOT NULL DEFAULT '',
+			prompt     TEXT NOT NULL DEFAULT '',
+			favorite   INTEGER NOT NULL DEFAULT 0,
+			created_at INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL DEFAULT 0
+		);
 	`)
 	if err != nil {
 		return err
@@ -91,6 +99,26 @@ func getConversation(id string) (*conversation, error) {
 func getMessages(conversationID string) ([]message, error) {
 	rows, err := db.Query(
 		`SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id`,
+		conversationID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var msgs []message
+	for rows.Next() {
+		var m message
+		if err := rows.Scan(&m.Role, &m.Content); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	return msgs, rows.Err()
+}
+
+func getOutlineMessages(conversationID string) ([]message, error) {
+	rows, err := db.Query(
+		`SELECT role, substr(content, 1, 100) FROM messages WHERE conversation_id = ? ORDER BY id`,
 		conversationID,
 	)
 	if err != nil {
@@ -223,4 +251,110 @@ func setTopic(id, topic string) error {
 func updateModel(id, model string) error {
 	_, err := db.Exec(`UPDATE conversations SET model = ? WHERE id = ?`, model, id)
 	return err
+}
+
+// ── prompts ───────────────────────────────────────────────────────────────────
+
+type promptRow struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Prompt    string `json:"prompt"`
+	Favorite  bool   `json:"favorite"`
+	CreatedAt int64  `json:"createdAt"`
+	UpdatedAt int64  `json:"updatedAt"`
+}
+
+func listPrompts() ([]promptRow, error) {
+	rows, err := db.Query(`SELECT id, title, prompt, favorite, created_at, updated_at FROM prompts ORDER BY updated_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []promptRow
+	for rows.Next() {
+		var p promptRow
+		var fav int
+		if err := rows.Scan(&p.ID, &p.Title, &p.Prompt, &fav, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		p.Favorite = fav != 0
+		out = append(out, p)
+	}
+	if out == nil {
+		out = []promptRow{}
+	}
+	return out, rows.Err()
+}
+
+func upsertPromptRow(p promptRow) (string, error) {
+	if p.ID == "" {
+		p.ID = newID()
+	}
+	now := time.Now().UnixMilli()
+	if p.CreatedAt == 0 {
+		p.CreatedAt = now
+	}
+	p.UpdatedAt = now
+	fav := 0
+	if p.Favorite {
+		fav = 1
+	}
+	_, err := db.Exec(`
+		INSERT INTO prompts (id, title, prompt, favorite, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			title      = excluded.title,
+			prompt     = excluded.prompt,
+			favorite   = excluded.favorite,
+			updated_at = excluded.updated_at`,
+		p.ID, p.Title, p.Prompt, fav, p.CreatedAt, p.UpdatedAt,
+	)
+	return p.ID, err
+}
+
+func deletePromptRow(id string) error {
+	_, err := db.Exec(`DELETE FROM prompts WHERE id = ?`, id)
+	return err
+}
+
+func importPromptRows(items []promptRow) (added, updated, skipped int, err error) {
+	existing, err := listPrompts()
+	if err != nil {
+		return
+	}
+	type key struct{ title, prompt string }
+	byID := make(map[string]bool, len(existing))
+	byContent := make(map[key]bool, len(existing))
+	for _, p := range existing {
+		byID[p.ID] = true
+		byContent[key{p.Title, p.Prompt}] = true
+	}
+	for _, p := range items {
+		if p.Title == "" || p.Prompt == "" {
+			skipped++
+			continue
+		}
+		if p.ID != "" && byID[p.ID] {
+			_, err = upsertPromptRow(p)
+			if err != nil {
+				return
+			}
+			updated++
+		} else {
+			if byContent[key{p.Title, p.Prompt}] {
+				skipped++
+				continue
+			}
+			p.ID = ""
+			newID, e := upsertPromptRow(p)
+			if e != nil {
+				err = e
+				return
+			}
+			byID[newID] = true
+			byContent[key{p.Title, p.Prompt}] = true
+			added++
+		}
+	}
+	return
 }

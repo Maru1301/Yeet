@@ -33,6 +33,7 @@ declare global {
   const ROOT_FOLDER: string;
   const PROXY_API_URL: string;
   const ENV: string;
+  const AGENT_NAME: string;
 }
 
 declare module '*.vue' {

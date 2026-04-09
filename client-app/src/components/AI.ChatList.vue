@@ -1,7 +1,7 @@
 <template>
   <v-navigation-drawer :rail="!drawerValue"
                        :rail-width="56"
-                       width="270"
+                       width="300"
                        class="pt-3 left-menu sideBar elevation-0"
                        permanent
                        :mobile-breakpoint="0">

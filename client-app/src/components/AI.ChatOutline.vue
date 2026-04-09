@@ -1,6 +1,10 @@
 <template>
   <div v-if="store.entries.length > 0"
        class="outline-strip">
+    <v-btn density="compact" class="outline-btn px-0"
+      @click="emit('up')">
+      <v-icon size="x-large">mdi-menu-up</v-icon>
+    </v-btn>
     <v-tooltip v-for="entry in store.entries"
                :key="entry.index"
                :text="entry.label === '[media]' ? '(media)' : entry.label"
@@ -17,6 +21,10 @@
              @click="emit('navigate', entry.index)" />
       </template>
     </v-tooltip>
+    <v-btn density="compact" class="outline-btn px-0"
+      @click="emit('down')">
+      <v-icon size="x-large">mdi-menu-down</v-icon>
+    </v-btn>
   </div>
 </template>
 
@@ -27,6 +35,8 @@ const store = useOutlineStore();
 
 const emit = defineEmits<{
   navigate: [index: number];
+  up: [];
+  down: [];
 }>();
 </script>
 
@@ -45,6 +55,11 @@ const emit = defineEmits<{
   pointer-events: none;
   max-height: 70%;
   overflow: hidden;
+}
+
+.outline-btn {
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 .outline-line {
