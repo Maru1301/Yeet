@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vuetify from 'vite-plugin-vuetify';
-import basicSsl from '@vitejs/plugin-basic-ssl';
 import path from 'path';
 import customConfig from './vue.allVar';
 
@@ -29,7 +28,6 @@ export default defineConfig(({ mode }) => {
     plugins: [
       vue(),
       vuetify({ autoImport: true }),
-      basicSsl(),
     ],
 
     resolve: {
@@ -47,12 +45,6 @@ export default defineConfig(({ mode }) => {
 
     server: {
       port: 44493,
-      proxy: {
-        '/chat': { target: 'http://localhost:8080', changeOrigin: true },
-        '/agent': { target: 'http://localhost:8080', changeOrigin: true },
-        '/live/ws': { target: 'http://localhost:8080', changeOrigin: true, ws: true },
-        '/live/voices': { target: 'http://localhost:8080', changeOrigin: true },
-      },
       compress: false,
     },
 

@@ -18,13 +18,13 @@ const customConfig: CustomConfig = {
   Local: {
     sourcePublicPath: '/',
     rootFolder: '""',
-    proxyApiUrl: JSON.stringify(``),   // relative — Vite proxies /chat and /agent → Go on :8080
+    proxyApiUrl: JSON.stringify(`//localhost:8080`),   // relative — Vite proxies /chat and /agent → Go on :8080
     env: JSON.stringify('Local'),
   },
   Debug: {
     sourcePublicPath: '/',
     rootFolder: '""',
-    proxyApiUrl: JSON.stringify(``),   // relative — Vite proxies /chat and /agent → Go on :8080
+    proxyApiUrl: JSON.stringify(`//localhost:8080`),   // relative — Vite proxies /chat and /agent → Go on :8080
     env: JSON.stringify('Debug'),
   },
   QAS: {
@@ -36,7 +36,7 @@ const customConfig: CustomConfig = {
   Release: {
     sourcePublicPath: '/',
     rootFolder: '""',
-    proxyApiUrl: JSON.stringify(``),   // relative — Go serves both static and API on the same port
+    proxyApiUrl: JSON.stringify(`//localhost:8080`),   // relative — Go serves both static and API on the same port
     env: JSON.stringify('Release'),
   },
 };

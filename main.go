@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -11,10 +13,17 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
+	"os/exec"
+	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -86,6 +95,18 @@ func main() {
 		log.Fatalf("initDB: %v", err)
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	dev := getEnv("DEV", "") != ""
+	viteURL := getEnv("VITE_DEV_URL", "http://localhost:44493")
+
+	if dev {
+		if err := startViteDev(ctx, viteURL); err != nil {
+			log.Fatalf("startViteDev: %v", err)
+		}
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/chat/start", cors(handleStart(apiKey)))
 	mux.HandleFunc("/chat/models", cors(handleModels(apiKey)))
@@ -102,10 +123,22 @@ func main() {
 	mux.HandleFunc("/agent/", cors(handleStub()))
 	mux.HandleFunc("/live/voices", cors(handleLiveVoices()))
 	mux.HandleFunc("/live/ws", handleLiveWS(apiKey))
-	mux.HandleFunc("/", handleStatic())
+	if dev {
+		mux.HandleFunc("/", handleDevProxy(viteURL))
+	} else {
+		mux.HandleFunc("/", handleStatic())
+	}
 
-	log.Printf("listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	srv := &http.Server{Addr: ":" + port, Handler: mux}
+	go func() {
+		<-ctx.Done()
+		srv.Shutdown(context.Background()) //nolint:errcheck
+	}()
+
+	log.Printf("listening on :%s (dev=%v)", port, dev)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
 }
 
 // ── middleware ────────────────────────────────────────────────────────────────
@@ -148,21 +181,21 @@ func handleStart(_ string) http.HandlerFunc {
 	}
 }
 
-func handleModels(_ string) http.HandlerFunc {
+func handleModels(apiKey string) http.HandlerFunc {
 	type model struct {
 		Name        string `json:"name"`
 		DisplayName string `json:"displayName"`
 		IsAgent     bool   `json:"isAgent"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		// url := fmt.Sprintf("%s?key=%s&pageSize=1000", geminiBase, apiKey)
-		// resp, err := http.Get(url)
-		// if err != nil {
-		// 	log.Printf("listModels: %v", err)
-		// 	http.Error(w, "failed to list models", http.StatusBadGateway)
-		// 	return
-		// }
-		// defer resp.Body.Close()
+		url := fmt.Sprintf("%s?key=%s&pageSize=1000", geminiBase, apiKey)
+		resp, err := http.Get(url)
+		if err != nil {
+			log.Printf("listModels: %v", err)
+			http.Error(w, "failed to list models", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
 
 		var result struct {
 			Models []struct {
@@ -171,33 +204,23 @@ func handleModels(_ string) http.HandlerFunc {
 				SupportedMethods []string `json:"supportedGenerationMethods"`
 			} `json:"models"`
 		}
-		// if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		// 	log.Printf("listModels decode: %v", err)
-		// 	http.Error(w, "failed to decode model list", http.StatusInternalServerError)
-		// 	return
-		// }
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			log.Printf("listModels decode: %v", err)
+			http.Error(w, "failed to decode model list", http.StatusInternalServerError)
+			return
+		}
 
-		result.Models = append(result.Models, struct {
-			Name             string   `json:"name"`
-			DisplayName      string   `json:"displayName"`
-			SupportedMethods []string `json:"supportedGenerationMethods"`
-		}{
-			Name:             "gemini-2.5-flash",
-			DisplayName:      "Gemini 2.5 Flash",
-			SupportedMethods: []string{"streamGenerateContent"},
-		})
-
-		//  var models []model
-		// for _, m := range result.Models {
-		// 	for _, method := range m.SupportedMethods {
-		// 		if method == "streamGenerateContent" {
-		// 			// name is "models/gemini-xxx" — strip the prefix
-		// 			name := strings.TrimPrefix(m.Name, "models/")
-		// 			models = append(models, model{Name: name, DisplayName: m.DisplayName})
-		// 			break
-		// 		}
-		// 	}
-		// }
+		var models []model
+		for _, m := range result.Models {
+			for _, method := range m.SupportedMethods {
+				if method == "streamGenerateContent" {
+					// name is "models/gemini-xxx" — strip the prefix
+					name := strings.TrimPrefix(m.Name, "models/")
+					models = append(models, model{Name: name, DisplayName: m.DisplayName})
+					break
+				}
+			}
+		}
 		jsonResp(w, result.Models)
 	}
 }
@@ -225,6 +248,8 @@ func handleSend(apiKey string) http.HandlerFunc {
 		model := req.Model
 		if model == "" {
 			model = defaultModel
+		} else {
+			model = strings.TrimPrefix(model, "models/")
 		}
 
 		// Set SSE headers before any write so they are included in the 200 response
@@ -782,6 +807,68 @@ func handleStub() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "agent endpoints not implemented", http.StatusNotImplemented)
 	}
+}
+
+func startViteDev(ctx context.Context, viteURL string) error {
+	npm := "npm"
+	if runtime.GOOS == "windows" {
+		npm = "npm.cmd"
+	}
+	cmd := exec.CommandContext(ctx, npm, "run", "dev")
+	cmd.Dir = "client-app"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start vite: %w", err)
+	}
+	log.Printf("vite dev server starting (pid %d)…", cmd.Process.Pid)
+	go func() {
+		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
+			log.Printf("vite exited unexpectedly: %v", err)
+		}
+	}()
+
+	// Poll until Vite responds or context is cancelled
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		},
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if resp, err := client.Get(viteURL); err == nil {
+			resp.Body.Close()
+			log.Printf("vite dev server ready at %s", viteURL)
+			return nil
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	return fmt.Errorf("vite dev server did not become ready within 30s")
+}
+
+func handleDevProxy(viteURL string) http.HandlerFunc {
+	target, err := url.Parse(viteURL)
+	if err != nil {
+		log.Fatalf("invalid VITE_DEV_URL %q: %v", viteURL, err)
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	// Vite dev server uses a self-signed cert — skip verification for the internal hop
+	proxy.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+	}
+	// Preserve the target host so Vite's HMR WebSocket handshake succeeds
+	orig := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		orig(req)
+		req.Host = target.Host
+	}
+	return proxy.ServeHTTP
 }
 
 func handleStatic() http.HandlerFunc {
