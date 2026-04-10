@@ -70,17 +70,7 @@
       <AIFooter />
     </div>
 
-    <v-snackbar v-model="snackbar.visible"
-                :color="snackbar.color"
-                location="top right"
-                timeout="8000">
-      {{ snackbar.message }}
-      <template v-if="snackbar.action"
-                #actions>
-        <v-btn variant="text"
-               @click="snackbar.action?.()">{{ snackbar.actionText }}</v-btn>
-      </template>
-    </v-snackbar>
+    <AppSnackbar ref="snackbarRef" />
 
   </div>
 </template>
@@ -101,28 +91,23 @@ import ChatOutline from './AI.ChatOutline.vue';
 import ChatMessages from './AI.ChatMessages.vue';
 import ChatInputBar from './AI.ChatInputBar.vue';
 import AIFooter from './AI.Footer.vue';
+import AppSnackbar from './AI.Snackbar.vue';
 import { useOutlineStore } from '../store/outline';
-import yeetDarkPng from '../assets/yeet/yeet_dark.png';
-import yeetLightPng from '../assets/yeet/yeet_light.png';
-import yeetDarkGif from '../assets/yeet_gif/yeet_dark.gif';
-import yeetLightGif from '../assets/yeet_gif/yeet_light.gif';
+import yeetDarkPng from '../assets/yeet_pic/yeet_dark.png';
+import yeetLightPng from '../assets/yeet_pic/yeet_light.png';
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
 const vuetifyTheme = useTheme();
 const { mobile } = useDisplay();
 const isDark = computed(() => vuetifyTheme.global.name.value === 'dark');
-const botAvatar = computed(() => {
-  if (isResponding.value) {
-    return isDark.value ? yeetLightGif : yeetDarkGif;
-  }
-  return isDark.value ? yeetLightPng : yeetDarkPng;
-});
+const botAvatar = computed(() => isDark.value ? yeetLightPng : yeetDarkPng);
 
 // ── Refs ──────────────────────────────────────────────────────────────────────
 
 const route = useRoute();
 const chatListRef = ref<any>(null);
+const snackbarRef = ref<InstanceType<typeof AppSnackbar> | null>(null);
 const chatMessagesRef = ref<InstanceType<typeof ChatMessages> | null>(null);
 const chatInputBarRef = ref<InstanceType<typeof ChatInputBar> | null>(null);
 
@@ -140,10 +125,9 @@ const optimizing = ref(false);
 const usedModel = ref<{ name: string; isAgent: boolean; }>({ name: '', isAgent: false });
 const drawer = ref(false);
 const showPromptManager = ref(false);
-const snackbar = ref<{ visible: boolean; message: string; color: string; actionText: string; action: (() => void) | null }>({ visible: false, message: '', color: 'success', actionText: '', action: null });
 
 function showSnackbar(message: string, color: string, actionText = '', action: (() => void) | null = null) {
-  snackbar.value = { visible: true, message, color, actionText, action };
+  snackbarRef.value?.show(message, color, actionText, action);
 }
 const lastPrompt = ref('');
 const isError = ref(false);

@@ -1,5 +1,5 @@
 /**
- * mic-processor.js — AudioWorklet processor for PCM capture at 16 kHz mono.
+ * mic-processor.ts — AudioWorklet processor for PCM capture at 16 kHz mono.
  *
  * Registered via inline blob URL in live.audio.service.ts so no separate
  * asset file is needed (preserves single-binary embed compatibility).
@@ -8,7 +8,7 @@
  *   recording — 1 while mic capture is active, 0 to gate (PTT mode)
  */
 class MicProcessor extends AudioWorkletProcessor {
-  static get parameterDescriptors() {
+  static get parameterDescriptors(): AudioParamDescriptor[] {
     return [
       {
         name: 'recording',
@@ -20,8 +20,8 @@ class MicProcessor extends AudioWorkletProcessor {
     ];
   }
 
-  process(inputs, _outputs, parameters) {
-    const recording = parameters.recording[0];
+  process(inputs: Float32Array[][], _outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
+    const recording = parameters['recording'][0];
     if (recording === 0) return true;
 
     const input = inputs[0];

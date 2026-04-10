@@ -1,65 +1,120 @@
 <template>
   <div v-if="store.entries.length > 0"
        class="outline-strip">
-    <v-btn density="compact" class="outline-btn px-0"
-      @click="emit('up')">
+    <v-btn density="compact"
+           class="outline-btn px-0"
+           @click="emit('up')">
       <v-icon size="x-large">mdi-menu-up</v-icon>
     </v-btn>
-    <v-tooltip v-for="entry in store.entries"
-               :key="entry.index"
-               :text="entry.label === '[media]' ? '(media)' : entry.label"
-               location="left"
-               content-class="outline-tooltip">
-      <template v-slot:activator="{ props: tp }">
-        <div v-bind="tp"
-             class="outline-line"
-             :class="{
-               'outline-line--user': entry.role === 'user',
-               'outline-line--assistant': entry.role === 'assistant',
-               'outline-line--active': entry.index === store.activeIndex,
-             }"
-             @click="emit('navigate', entry.index)" />
-      </template>
-    </v-tooltip>
-    <v-btn density="compact" class="outline-btn px-0"
-      @click="emit('down')">
+
+    <div ref="linesRef"
+         class="outline-lines">
+      <v-tooltip v-for="entry in store.entries"
+                 :key="entry.index"
+                 :text="entry.label === '[media]' ? '(media)' : entry.label"
+                 location="left"
+                 content-class="outline-tooltip">
+        <template v-slot:activator="{ props: tp }">
+          <div v-bind="tp"
+               class="outline-line"
+               :class="{
+                 'outline-line--user': entry.role === 'user',
+                 'outline-line--assistant': entry.role === 'assistant',
+                 'outline-line--active': entry.index === store.activeIndex,
+               }"
+               @click="emit('navigate', entry.index)" />
+        </template>
+      </v-tooltip>
+    </div>
+
+    <v-btn density="compact"
+           class="outline-btn px-0"
+           @click="emit('down')">
       <v-icon size="x-large">mdi-menu-down</v-icon>
     </v-btn>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, watch, nextTick } from 'vue';
 import { useOutlineStore } from '../store/outline';
 
 const store = useOutlineStore();
+const linesRef = ref<HTMLElement | null>(null);
 
 const emit = defineEmits<{
   navigate: [index: number];
   up: [];
   down: [];
 }>();
+
+async function scrollToActive() {
+  await nextTick();
+  const el = linesRef.value;
+  if (!el) return;
+  const activeEl = el.querySelector('.outline-line--active') as HTMLElement | null;
+  if (!activeEl) return;
+
+  const containerH = el.clientHeight;
+  const maxScroll = el.scrollHeight - containerH;
+  if (maxScroll <= 0) return;
+
+  const target = activeEl.offsetTop - containerH / 2 + activeEl.offsetHeight / 2;
+  el.scrollTop = Math.max(0, Math.min(target, maxScroll));
+}
+
+watch(() => store.activeIndex, scrollToActive);
 </script>
 
 <style lang="scss" scoped>
 .outline-strip {
   position: absolute;
   right: 6px;
-  top: calc(50% - 72px);
+  top: 40%;
   transform: translateY(-50%);
   z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 16px;
-  padding: 10px 3px;
-  pointer-events: none;
   max-height: 70%;
-  overflow: hidden;
+  padding: 4px 3px;
+  pointer-events: none;
 }
 
 .outline-btn {
+  flex-shrink: 0;
   cursor: pointer;
   pointer-events: auto;
+}
+
+.outline-lines {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 12px 0;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 36px,
+    black calc(100% - 36px),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 36px,
+    black calc(100% - 36px),
+    transparent
+  );
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .outline-line {
@@ -102,13 +157,14 @@ const emit = defineEmits<{
     height: 6px;
     border-radius: 3px;
 
-    &.outline-line--user    { 
+    &.outline-line--user {
       width: 28px;
       background: rgb(var(--v-theme-primary)) !important;
     }
-    &.outline-line--assistant { 
+
+    &.outline-line--assistant {
       width: 40px;
-      background: rgba(var(--v-theme-on-surface))!important; 
+      background: rgba(var(--v-theme-on-surface)) !important;
     }
   }
 }

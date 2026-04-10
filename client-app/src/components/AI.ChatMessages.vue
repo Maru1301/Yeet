@@ -47,9 +47,16 @@
 
           <div class="d-flex mb-3"
                v-else>
-            <img class="mr-3 bot-avatar"
-                 :src="botAvatar"
-                 alt="AI Chat" />
+            <span
+              class="mr-3 bot-avatar-wrap"
+              :class="{ 'is-generating': isResponding && index === messages.length - 1 }"
+            >
+              <img 
+                class="bot-avatar"
+                :src="botAvatar"
+                alt="AI Chat" 
+              />
+            </span>
             <div class="d-flex flex-column bot-msg-wrap">
               <div class="d-flex flex-column align-end chat-bot pt-2 pb-3 pr-4 pl-4">
                 <div v-if="message.content"
@@ -398,13 +405,57 @@ defineExpose({ chatBox, scrollToMessage, scrollToLastUserBubble });
   min-width: 0;
 }
 
-.bot-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
+@property --ring-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes rainbow-ring-spin {
+  to { --ring-angle: 360deg; }
+}
+
+.bot-avatar-wrap {
+  display: inline-flex;
   align-self: flex-start;
   flex-shrink: 0;
+  border-radius: 50%;
+  position: relative;
+  width: 48px;
+  height: 48px;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 7px;
+    border-radius: 50%;
+    background: conic-gradient(
+      from var(--ring-angle),
+      #ff0000, #ff7f00, #ffff00, #00e676,
+      #00bfff, #7c4dff, #ff0080, #ff0000
+    );
+    mask: radial-gradient(circle closest-side, transparent calc(100% - 3px), black calc(100% - 3px));
+    -webkit-mask: radial-gradient(circle closest-side, transparent calc(100% - 3px), black calc(100% - 3px));
+    animation: rainbow-ring-spin 1.5s linear infinite;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  &.is-generating::after {
+    opacity: 1;
+  }
+}
+
+.bot-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  position: relative;
+  z-index: 1;
 }
 
 .chat-bot {
