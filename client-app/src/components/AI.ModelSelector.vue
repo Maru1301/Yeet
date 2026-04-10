@@ -32,7 +32,7 @@
 
     <v-list nav
             density="compact"
-            class="model-selector-list mt-2 me-4"
+            class="model-selector-list mt-2"
             elevation="8">
       <v-list-item v-for="(model, index) in models"
                    :key="index"

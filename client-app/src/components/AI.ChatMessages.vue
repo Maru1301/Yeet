@@ -5,18 +5,19 @@
        @scroll="onScroll">
     <div class="mx-auto chat-content-width">
 
-      <div class="d-flex flex-column align-center">
-        <img class="chat-bg-img chat-bg-light chat-welcome-img"
+      <div class="d-flex flex-column align-center" v-if="messages.length === 0">
+        <!-- <img class="chat-bg-img chat-bg-light chat-welcome-img"
              :src="chatBg"
-             alt="AI Chat" />
-        <img class="chat-bg-img chat-bg-dark chat-welcome-img"
+             alt="AI Chat" /> -->
+        <!-- <img class="chat-bg-img chat-bg-dark chat-welcome-img"
              :src="chatBg_dark"
-             alt="AI Chat" />
+             alt="AI Chat" /> -->
         <div class="chat-title my-3 gradient-text">Hi, {{ account }}</div>
         <div class="chat-subtitle">Ask me anything. Start a conversation below.</div>
       </div>
 
-      <PromptCards @selected="(item: any) => emit('promptSelected', item)" />
+      <PromptCards v-if="messages.length === 0"
+      @selected="(item: any) => emit('promptSelected', item)" />
 
       <div class="mx-2">
         <div v-for="(message, index) in messages"
