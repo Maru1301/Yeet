@@ -1,6 +1,6 @@
 <template>
   <div class="d-flex flex-column align-center mt-3"
-       style="width: 50%;">
+       style="width: 70%;">
     <div class="input-block">
       <div class="d-flex ml-2 mr-2 align-end">
         <Textarea ref="textareaRef"
