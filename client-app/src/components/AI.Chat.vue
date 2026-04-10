@@ -73,8 +73,13 @@
     <v-snackbar v-model="snackbar.visible"
                 :color="snackbar.color"
                 location="top right"
-                timeout="5000">
+                timeout="8000">
       {{ snackbar.message }}
+      <template v-if="snackbar.action"
+                #actions>
+        <v-btn variant="text"
+               @click="snackbar.action?.()">{{ snackbar.actionText }}</v-btn>
+      </template>
     </v-snackbar>
 
   </div>
@@ -135,7 +140,11 @@ const optimizing = ref(false);
 const usedModel = ref<{ name: string; isAgent: boolean; }>({ name: '', isAgent: false });
 const drawer = ref(false);
 const showPromptManager = ref(false);
-const snackbar = ref({ visible: false, message: '', color: 'success' });
+const snackbar = ref<{ visible: boolean; message: string; color: string; actionText: string; action: (() => void) | null }>({ visible: false, message: '', color: 'success', actionText: '', action: null });
+
+function showSnackbar(message: string, color: string, actionText = '', action: (() => void) | null = null) {
+  snackbar.value = { visible: true, message, color, actionText, action };
+}
 const lastPrompt = ref('');
 const isError = ref(false);
 const historyOffset = ref(0);
@@ -299,15 +308,29 @@ async function handleChatStreamEnd() {
   }
 }
 
+function abortWithError(message: string) {
+  // Drop the empty bot placeholder so the conversation stays clean.
+  messages.value.pop();
+  content.value = '';
+  isResponding.value = false;
+  showSnackbar(message, 'error', 'Retry', () => send(false));
+}
+
 function processChatStreamChunk(value: Uint8Array) {
   const buffer = textDecoder.decode(value, { stream: true });
-  let text = '';
-  if (buffer.startsWith('{ "statusCode":') || buffer.startsWith('<html>')) {
-    console.error(buffer);
-    text = 'An error occurred in the AI system. Please enter the conversation again or <strong>refresh the page</strong>.';
-  } else {
-    text = parseStreamBuffer(buffer);
+
+  // SSE error event from backend: {"e":"..."}
+  const errMatch = buffer.match(/"e"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (errMatch || buffer.startsWith('{ "statusCode":') || buffer.startsWith('<html>')) {
+    const errMsg = errMatch
+      ? errMatch[1].replace(/\\"/g, '"')
+      : 'An error occurred. Please try again.';
+    console.error('Stream error:', errMsg);
+    abortWithError(errMsg);
+    return;
   }
+
+  const text = parseStreamBuffer(buffer);
   content.value += text;
   const msg = messages.value[messages.value.length - 1];
   if (!msg) return;
@@ -316,11 +339,8 @@ function processChatStreamChunk(value: Uint8Array) {
 }
 
 function handleChatStreamError(error: unknown) {
-  isResponding.value = false;
-  isError.value = true;
-  const msg = messages.value[messages.value.length - 1];
-  if (msg) msg.content = 'An error occurred in the AI system.';
   console.error('Chat stream error:', error);
+  abortWithError('Could not reach the server. Please check your connection and try again.');
 }
 
 async function retry() {

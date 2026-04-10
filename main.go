@@ -79,6 +79,40 @@ type gGenerateResp struct {
 	} `json:"candidates"`
 }
 
+type gErrorResp struct {
+	Error struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Status  string `json:"status"`
+	} `json:"error"`
+}
+
+func geminiErrorMessage(status int, body []byte) string {
+	var e gErrorResp
+	if err := json.Unmarshal(body, &e); err == nil && e.Error.Status != "" {
+		switch e.Error.Status {
+		case "RESOURCE_EXHAUSTED":
+			return "Rate limit reached. Please wait a moment and try again."
+		case "UNAUTHENTICATED", "PERMISSION_DENIED":
+			return "API key is invalid or unauthorised."
+		case "INVALID_ARGUMENT":
+			return "The request was rejected by Gemini (invalid argument). Try rephrasing your message."
+		case "NOT_FOUND":
+			return "The selected model is unavailable. Please choose a different model."
+		}
+	}
+	switch {
+	case status == 429:
+		return "Rate limit reached. Please wait a moment and try again."
+	case status == 401 || status == 403:
+		return "API key is invalid or unauthorised."
+	case status >= 500:
+		return "Gemini service is temporarily unavailable. Please try again."
+	default:
+		return fmt.Sprintf("Gemini returned an error (%d). Please try again.", status)
+	}
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 func main() {
@@ -935,8 +969,8 @@ func streamGemini(w http.ResponseWriter, msgs []message, model, apiKey string) s
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		log.Printf("streamGemini: gemini error body: %s", b)
-		sseError(w, fmt.Sprintf("upstream %d: %s", resp.StatusCode, b))
+		log.Printf("streamGemini: gemini error status=%d body=%s", resp.StatusCode, b)
+		sseError(w, geminiErrorMessage(resp.StatusCode, b))
 		return ""
 	}
 
