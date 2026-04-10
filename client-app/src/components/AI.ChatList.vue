@@ -1,35 +1,51 @@
 <template>
-  <v-navigation-drawer :rail="!drawerValue"
+  <v-navigation-drawer :model-value="isMobile ? drawerValue : true"
+                       :rail="!isMobile && !drawerValue"
                        :rail-width="56"
                        width="300"
                        class="pt-3 left-menu sideBar elevation-0"
-                       permanent
-                       :mobile-breakpoint="0">
-    <!-- Logo row (expanded only) -->
-    <div v-show="textVisible"
-         class="d-flex align-center px-3 py-4">
-      <img class="chat-bg-img chat-bg-light"
-           :src="aiMenuLogo"
-           style="width:32px;height:32px;border-radius:8px;"
-           alt="AI_Menu" />
-      <img class="chat-bg-img chat-bg-dark"
-           :src="aiMenuLogoDark"
-           style="width:32px;height:32px;border-radius:8px;"
-           alt="AI_Menu" />
-      <v-spacer />
-      <div class="theme-switch" @click="toggleTheme()">
-        <div class="switch-sun">
-          <v-icon size="15" class="switch-icon switch-icon-sun">mdi-white-balance-sunny</v-icon>
-        </div>
-        <div class="switch-moon">
-          <v-icon size="15" class="switch-icon switch-icon-moon">mdi-moon-waning-crescent</v-icon>
-        </div>
+                       :permanent="!isMobile"
+                       :temporary="isMobile"
+                       :mobile-breakpoint="0"
+                       @update:model-value="(val: boolean) => { if (isMobile) drawerValue = val; }">
+    <!-- Header: logo-toggle (always visible) + theme switch (expanded only) -->
+    <div class="drawer-header"
+         :class="{ 'is-rail': !isMobile && !drawerValue }">
+      <div class="logo-toggle"
+           @click="drawerValue = !drawerValue">
+        <img class="chat-bg-img chat-bg-light logo-img"
+             :src="aiMenuLogo"
+             alt="AI_Menu" />
+        <img class="chat-bg-img chat-bg-dark logo-img"
+             :src="aiMenuLogoDark"
+             alt="AI_Menu" />
+        <span class="nav-icon-wrap">
+          <v-icon class="primary-btn"
+                  size="20">mdi-menu</v-icon>
+        </span>
       </div>
+      <template v-if="textVisible">
+        <v-spacer />
+        <div class="theme-switch"
+             @click.stop="toggleTheme()">
+          <div class="switch-sun">
+            <v-icon size="15"
+                    class="switch-icon switch-icon-sun">mdi-white-balance-sunny</v-icon>
+          </div>
+          <div class="switch-moon">
+            <v-icon size="15"
+                    class="switch-icon switch-icon-moon">mdi-moon-waning-crescent</v-icon>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- Action Buttons -->
-    <v-list nav  class="pa-0">
-      <v-tooltip location="right" :disabled="drawerValue" text="New Chat">
+    <v-list nav
+            class="pa-0">
+      <v-tooltip location="right"
+                 :disabled="drawerValue"
+                 text="New Chat">
         <template #activator="{ props: tip }">
           <v-list-item v-bind="tip"
                        class="text-capitalize font-weight-medium"
@@ -43,7 +59,9 @@
         </template>
       </v-tooltip>
 
-      <v-tooltip location="right" :disabled="drawerValue" text="My Prompts">
+      <v-tooltip location="right"
+                 :disabled="drawerValue"
+                 text="My Prompts">
         <template #activator="{ props: tip }">
           <v-list-item v-bind="tip"
                        class="text-capitalize font-weight-medium"
@@ -57,7 +75,9 @@
         </template>
       </v-tooltip>
 
-      <v-tooltip location="right" :disabled="drawerValue" text="Live">
+      <v-tooltip location="right"
+                 :disabled="drawerValue"
+                 text="Live">
         <template #activator="{ props: tip }">
           <v-list-item v-bind="tip"
                        class="text-capitalize font-weight-medium"
@@ -77,7 +97,8 @@
                gradient />
 
     <!-- Chat List -->
-    <div v-if="drawerValue" class="chat-list-scroll ml-1">
+    <div v-if="drawerValue"
+         class="chat-list-scroll ml-1">
       <div v-if="conversationList.length > 0">
         <div v-for="group in groupedConversations"
              :key="group.dateLabel">
@@ -91,7 +112,10 @@
                          @click="handleSelectConversation(conversation)"
                          @mouseenter="hoveredIndex = conversation.conversationId">
               <v-list-item-title class="text-truncate font-weight-regular d-flex align-center gap-1">
-                <v-icon v-if="conversation.isLive" size="13" color="primary" class="mr-1">mdi-microphone</v-icon>
+                <v-icon v-if="conversation.isLive"
+                        size="13"
+                        color="primary"
+                        class="mr-1">mdi-microphone</v-icon>
                 {{ conversation.topic || 'New Conversation' }}
               </v-list-item-title>
               <template #append>
@@ -152,11 +176,17 @@
       </v-list>
     </div>
 
-    <!-- Theme toggle at bottom (rail only) -->
-    <div v-show="!drawerValue" class="rail-theme-bottom">
-      <v-tooltip location="right" text="Toggle theme">
+    <!-- Theme toggle at bottom (rail only, desktop) -->
+    <div v-show="!isMobile && !drawerValue"
+         class="rail-theme-bottom">
+      <v-tooltip location="right"
+                 text="Toggle theme">
         <template #activator="{ props: tip }">
-          <v-btn v-bind="tip" icon variant="text" size="small" @click="toggleTheme()">
+          <v-btn v-bind="tip"
+                 icon
+                 variant="text"
+                 size="small"
+                 @click="toggleTheme()">
             <v-icon class="primary-btn">mdi-theme-light-dark</v-icon>
           </v-btn>
         </template>
@@ -205,11 +235,12 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
 
-const aiMenuLogo = new URL('../assets/AI_Menu_Logo.svg', import.meta.url).href;
-const aiMenuLogoDark = new URL('../assets/AI_Menu_Logo_Dark.svg', import.meta.url).href;
+const aiMenuLogo = new URL('../assets/yeet/yeet_dark.png', import.meta.url).href;
+const aiMenuLogoDark = new URL('../assets/yeet/yeet_light.png', import.meta.url).href;
 
 const props = defineProps<{
   drawer: boolean;
+  isMobile: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -248,7 +279,7 @@ const deleteDialog = ref(false);
 const selectedConversation = ref<Conversation | null>(null);
 
 // Controls logo row / divider visibility. Text spans use CSS transitions instead.
-const textVisible = ref(true);
+const textVisible = ref(props.drawer);
 
 const drawerValue = computed({
   get() {
@@ -260,6 +291,7 @@ const drawerValue = computed({
 });
 
 watch(drawerValue, (expanded) => {
+  // On mobile: drawer open = show text. On desktop: expanded = show text, rail = hide text.
   textVisible.value = expanded;
 });
 
@@ -438,6 +470,7 @@ defineExpose({ initConversationList });
   opacity: 1;
   transition: opacity 160ms ease 80ms; // start fading in 80ms into the expand
 }
+
 .left-menu.v-navigation-drawer--rail .btn-text {
   opacity: 0;
   transition: none; // collapse: hide instantly, no animation
@@ -567,6 +600,56 @@ defineExpose({ initConversationList });
     .switch-moon {
       background: rgb(var(--v-theme-primary));
     }
+  }
+}
+
+// ── Drawer header ─────────────────────────────────────────────────────────────
+.drawer-header {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+
+  &.is-rail {
+    justify-content: center;
+    padding: 12px 0;
+  }
+}
+
+.logo-toggle {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  .logo-img {
+    position: absolute;
+    inset: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    object-fit: cover;
+    transition: opacity 0.2s ease;
+    opacity: 1;
+  }
+
+  .nav-icon-wrap {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  &:hover .logo-img {
+    opacity: 0;
+  }
+
+  &:hover .nav-icon-wrap {
+    opacity: 1;
   }
 }
 </style>

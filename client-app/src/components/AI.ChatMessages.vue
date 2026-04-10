@@ -1,18 +1,16 @@
 <template>
+  <div class="chatbox-wrapper flex-grow-1">
   <div ref="chatBox"
-       class="chatbox flex-grow-1 overflow-y-auto pa-4"
+       class="chatbox overflow-y-auto pa-4"
        @scroll="onScroll">
-    <div class="mx-auto"
-         style="width: 50%;">
+    <div class="mx-auto chat-content-width">
 
       <div class="d-flex flex-column align-center">
-        <img class="chat-bg-img chat-bg-light"
+        <img class="chat-bg-img chat-bg-light chat-welcome-img"
              :src="chatBg"
-             width="400"
              alt="AI Chat" />
-        <img class="chat-bg-img chat-bg-dark"
+        <img class="chat-bg-img chat-bg-dark chat-welcome-img"
              :src="chatBg_dark"
-             width="400"
              alt="AI Chat" />
         <div class="chat-title my-3 gradient-text">Hi, {{ account }}</div>
         <div class="chat-subtitle">Ask me anything. Start a conversation below.</div>
@@ -33,8 +31,7 @@
                            :message="message"
                            :useAgent="useAgent" />
             </div>
-            <div class="d-flex flex-column"
-                 style="min-width: 0">
+            <div class="d-flex flex-column user-msg-wrap">
               <div class="d-flex flex-column align-end chat-user pt-2 pb-2 pr-4 pl-4">
                 <div v-if="message.content"
                      class="user-content"
@@ -53,8 +50,7 @@
             <img class="mr-3 bot-avatar"
                  :src="botAvatar"
                  alt="AI Chat" />
-            <div class="d-flex flex-column"
-                 style="min-width: 0; flex: 1">
+            <div class="d-flex flex-column bot-msg-wrap">
               <div class="d-flex flex-column align-end chat-bot pt-2 pb-3 pr-4 pl-4">
                 <div v-if="message.content"
                      class="bot-content"
@@ -94,6 +90,7 @@
       <div v-else-if="bottomSpacerHeight > 0"
            :style="{ height: `${bottomSpacerHeight}px` }"></div>
     </div>
+  </div>
   </div>
 </template>
 
@@ -324,8 +321,57 @@ defineExpose({ chatBox, scrollToMessage, scrollToLastUserBubble });
 // ============================================================
 // Layout
 // ============================================================
-.chatbox {
+.bot-msg-wrap {
+  min-width: 0;
+  max-width: 85%;
+}
+
+.user-msg-wrap {
+  min-width: 0;
+  max-width: 80%;
+}
+
+.chat-content-width {
+  width: 70%;
+  min-width: 0;
+
+  @media (max-width: 1280px) {
+    width: 70%;
+  }
+
+  @media (max-width: 960px) {
+    width: 100%;
+  }
+}
+
+.chat-welcome-img {
+  width: 400px;
+  max-width: 100%;
+  height: auto;
+}
+
+.chatbox-wrapper {
+  position: relative;
   flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(to bottom, transparent, rgb(var(--v-theme-background)));
+    pointer-events: none;
+    z-index: 1;
+  }
+}
+
+.chatbox {
+  height: 100%;
   overflow-y: auto;
   scrollbar-width: none;
   width: 100%;
@@ -337,8 +383,6 @@ defineExpose({ chatBox, scrollToMessage, scrollToLastUserBubble });
   }
 
   @media (max-width: 960px) {
-    width: 100%;
-    min-width: 0;
     padding: 0 12px;
   }
 }
@@ -350,12 +394,8 @@ defineExpose({ chatBox, scrollToMessage, scrollToLastUserBubble });
 .chat-user {
   font-style: normal;
   line-height: 1.65;
-  max-width: 700px;
+  max-width: 100%;
   min-width: 0;
-
-  @media (max-width: 960px) {
-    max-width: 100%;
-  }
 }
 
 .bot-avatar {

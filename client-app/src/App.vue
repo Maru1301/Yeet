@@ -23,6 +23,8 @@ import { useTheme } from 'vuetify';
 import { useAppStore } from './store/index';
 import hljsLightUrl from 'highlight.js/styles/github.css?url';
 import hljsDarkUrl from 'highlight.js/styles/github-dark.css?url';
+import yeetDarkPng from './assets/yeet/yeet_dark.png';
+import yeetLightPng from './assets/yeet/yeet_light.png';
 
 const store = useAppStore();
 // const { userAuth } = storeToRefs(store);
@@ -41,11 +43,24 @@ function applyHljsTheme(isDark: boolean) {
   hljsLink.href = isDark ? hljsDarkUrl : hljsLightUrl;
 }
 
+function applyFavicon(isDark: boolean) {
+  let faviconLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!faviconLink) {
+    faviconLink = document.createElement('link');
+    faviconLink.rel = 'icon';
+    faviconLink.type = 'image/png';
+    document.head.appendChild(faviconLink);
+  }
+  faviconLink.href = isDark ? yeetDarkPng : yeetLightPng;
+}
+
 applyHljsTheme(vuetifyTheme.global.name.value === 'dark');
+applyFavicon(vuetifyTheme.global.name.value === 'dark');
 
 watch(vuetifyTheme.global.name, (newTheme) => {
   localStorage.setItem('theme', newTheme);
   applyHljsTheme(newTheme === 'dark');
+  applyFavicon(newTheme === 'dark');
 });
 
 // const query = Object.fromEntries(new URLSearchParams(location.search)) as Record<string, string>;

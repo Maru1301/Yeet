@@ -3,6 +3,7 @@
 
     <ChatList ref="chatListRef"
               v-model:drawer="drawer"
+              :isMobile="mobile"
               :conversation="selectedConversation"
               @new-chat="newChat"
               @select-conversation="selectConversation"
@@ -11,12 +12,11 @@
               @live-mode="$router.push('/live')" />
 
     <!-- Chat Interface -->
-    <v-card v-if="!showPromptManager"
-            flat
-            class="fill-height d-flex flex-column pa-0 flex-1-1-0"
-            style="min-width: 120px;">
-      <v-card-text class="chat-bg d-flex align-center px-4 py-1 flex-grow-0 pb-4">
-        <v-app-bar-nav-icon density="compact"
+    <div v-if="!showPromptManager"
+         class="fill-height d-flex flex-column flex-1-1-0">
+      <div class="chat-bg d-flex align-center px-4 py-1 flex-grow-0 pb-4">
+        <v-app-bar-nav-icon v-if="mobile"
+                            density="compact"
                             class="bar-nav-icon"
                             @click.stop="drawer = !drawer"></v-app-bar-nav-icon>
         <div style="flex: 0 1 auto; min-width: 0;"
@@ -24,7 +24,7 @@
           <ModelSelector v-model:usedModel="usedModel"
                          :conversation="selectedConversation" />
         </div>
-      </v-card-text>
+      </div>
 
       <div class="chat-bg d-flex flex-column flex-grow-1 overflow-hidden align-center"
            style="position: relative;">
@@ -59,10 +59,9 @@
                       @open-prompt-manager="showPromptManager = true"
                       @summarize="summarize"
                       @stop-generation="stopGeneration"
-                      @prompt-selected="selectedPrompt"
- />
+                      @prompt-selected="selectedPrompt" />
       </div>
-    </v-card>
+    </div>
 
     <div v-if="showPromptManager"
          class="chat-footer d-flex flex-column align-center justify-center w-100"
@@ -84,6 +83,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
+import { useTheme, useDisplay } from 'vuetify';
 import { gptService } from '../global/gpt.api.service';
 import { SummaryPrompt } from './prompts/SummaryPrompt';
 import { toHtml, mdUser, parseStreamBuffer } from '../utils/markdown';
@@ -97,28 +97,22 @@ import ChatMessages from './AI.ChatMessages.vue';
 import ChatInputBar from './AI.ChatInputBar.vue';
 import AIFooter from './AI.Footer.vue';
 import { useOutlineStore } from '../store/outline';
+import yeetDarkPng from '../assets/yeet/yeet_dark.png';
+import yeetLightPng from '../assets/yeet/yeet_light.png';
+import yeetDarkGif from '../assets/yeet_gif/yeet_dark.gif';
+import yeetLightGif from '../assets/yeet_gif/yeet_light.gif';
 
-// ── Avatar animation ──────────────────────────────────────────────────────────
+// ── Avatar ────────────────────────────────────────────────────────────────────
 
-const yeetClosed = new URL('../assets/yeet.png', import.meta.url).href;
-const yeetOpen = new URL('../assets/yeet_mouth_open.png', import.meta.url).href;
-const botAvatar = ref(yeetClosed);
-let talkTimer: ReturnType<typeof setTimeout> | null = null;
-
-function startTalking() {
-  let mouthOpen = false;
-  function tick() {
-    mouthOpen = !mouthOpen;
-    botAvatar.value = mouthOpen ? yeetOpen : yeetClosed;
-    talkTimer = setTimeout(tick, 80 + Math.random() * 280);
+const vuetifyTheme = useTheme();
+const { mobile } = useDisplay();
+const isDark = computed(() => vuetifyTheme.global.name.value === 'dark');
+const botAvatar = computed(() => {
+  if (isResponding.value) {
+    return isDark.value ? yeetLightGif : yeetDarkGif;
   }
-  tick();
-}
-
-function stopTalking() {
-  if (talkTimer) { clearTimeout(talkTimer); talkTimer = null; }
-  botAvatar.value = yeetClosed;
-}
+  return isDark.value ? yeetLightPng : yeetDarkPng;
+});
 
 // ── Refs ──────────────────────────────────────────────────────────────────────
 
@@ -139,7 +133,7 @@ const isResponding = ref(false);
 const fileDataUri = ref<string | null>(null);
 const optimizing = ref(false);
 const usedModel = ref<{ name: string; isAgent: boolean; }>({ name: '', isAgent: false });
-const drawer = ref(true);
+const drawer = ref(false);
 const showPromptManager = ref(false);
 const snackbar = ref({ visible: false, message: '', color: 'success' });
 const lastPrompt = ref('');
@@ -168,11 +162,6 @@ watch(usedModel, async (newModel, oldModel) => {
   }
 });
 
-watch(isResponding, (newVal, oldVal) => {
-  if (oldVal === true && newVal === false) {
-    stopTalking();
-  }
-});
 
 // ── Outline navigation ────────────────────────────────────────────────────────
 
@@ -319,7 +308,6 @@ function processChatStreamChunk(value: Uint8Array) {
   } else {
     text = parseStreamBuffer(buffer);
   }
-  if (text && !content.value) startTalking();
   content.value += text;
   const msg = messages.value[messages.value.length - 1];
   if (!msg) return;
