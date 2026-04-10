@@ -235,8 +235,8 @@ import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
 
-const aiMenuLogo = new URL('../assets/yeet/yeet_dark.png', import.meta.url).href;
-const aiMenuLogoDark = new URL('../assets/yeet/yeet_light.png', import.meta.url).href;
+const aiMenuLogo = new URL('../assets/yeet_pic/yeet_dark.png', import.meta.url).href;
+const aiMenuLogoDark = new URL('../assets/yeet_pic/yeet_light.png', import.meta.url).href;
 
 const props = defineProps<{
   drawer: boolean;

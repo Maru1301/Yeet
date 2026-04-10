@@ -17,14 +17,13 @@
 
 <script setup lang="ts">
 import { onMounted, watch } from 'vue';
-import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import { useTheme } from 'vuetify';
 import { useAppStore } from './store/index';
 import hljsLightUrl from 'highlight.js/styles/github.css?url';
 import hljsDarkUrl from 'highlight.js/styles/github-dark.css?url';
-import yeetDarkPng from './assets/yeet/yeet_dark.png';
-import yeetLightPng from './assets/yeet/yeet_light.png';
+import yeetDarkPng from './assets/yeet_pic/yeet_dark.png';
+import yeetLightPng from './assets/yeet_pic/yeet_light.png';
 
 const store = useAppStore();
 // const { userAuth } = storeToRefs(store);
@@ -51,7 +50,7 @@ function applyFavicon(isDark: boolean) {
     faviconLink.type = 'image/png';
     document.head.appendChild(faviconLink);
   }
-  faviconLink.href = isDark ? yeetDarkPng : yeetLightPng;
+  faviconLink.href = isDark ? yeetLightPng : yeetDarkPng;
 }
 
 applyHljsTheme(vuetifyTheme.global.name.value === 'dark');
