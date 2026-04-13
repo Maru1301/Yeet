@@ -23,7 +23,8 @@ if [[ -f "$(dirname "$0")/local-env.sh" ]]; then
   source "$(dirname "$0")/local-env.sh"
 fi
 
-IMAGE="yeet:local"
+LOCAL_REGISTRY="${LOCAL_REGISTRY:-localhost:5000}"
+IMAGE="${LOCAL_REGISTRY}/yeet:local"
 
 # ── 1. Validate ───────────────────────────────────────────────────────────────
 if [[ -z "${API_KEY:-}" ]]; then
@@ -54,11 +55,22 @@ if [[ -z "${SKIP_BUILD:-}" ]]; then
   echo ">>> Building Docker image ${IMAGE}..."
   docker build -t "${IMAGE}" .
 
-  # kind does not share the host Docker daemon — image must be loaded explicitly.
-  # Docker Desktop Kubernetes shares the daemon, so no load step is needed.
   if [[ "${USE_KIND}" == "1" ]]; then
+    # kind has its own image store — must load explicitly
     echo ">>> Loading image into kind..."
     kind load docker-image "${IMAGE}" --name "${KIND_CLUSTER}"
+  else
+    # Docker Desktop Kubernetes uses containerd, which has a separate image
+    # store from Docker. Push to a local registry so containerd can pull it.
+    echo ">>> Pushing image to local registry (${LOCAL_REGISTRY})..."
+    if ! docker push "${IMAGE}" 2>/dev/null; then
+      echo "ERROR: Could not push to ${LOCAL_REGISTRY}."
+      echo "       Make sure the local registry is running:"
+      echo "         docker run -d -p 5000:5000 --restart=always --name local-registry registry:2"
+      echo "       And add it as an insecure registry in Docker Desktop → Settings → Docker Engine:"
+      echo '         "insecure-registries": ["localhost:5000"]'
+      exit 1
+    fi
   fi
 fi
 
