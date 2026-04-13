@@ -48,25 +48,18 @@ jobs:
           kubectl apply -f k8s/mongo.yaml
 
       # ── Create/update the k8s Secret from GitHub Secrets ──────────────────
-      # This keeps real credential values out of the repo entirely.
+      # Real values never touch the repo — only live in the Secret object.
       - name: Apply k8s secret
         run: |
           kubectl create secret generic yeet-secret \
+            --from-literal=api-key="${{ secrets.API_KEY }}" \
             --from-literal=mongo-uri="${{ secrets.MONGO_URI }}" \
             --save-config --dry-run=client -o yaml | kubectl apply -f -
 
-      # ── Replace __API_KEY__ token in deployment manifest ──────────────────
-      - name: Replace tokens in deployment.yaml
-        run: |
-          sed -i 's|__API_KEY__|${{ secrets.API_KEY }}|g' k8s/deployment.yaml
-
-      - name: Update image tag in deployment.yaml
-        run: |
-          sed -i 's|image: yeet:latest|image: ghcr.io/${{ github.repository_owner }}/yeet:${{ github.sha }}|g' k8s/deployment.yaml
-
       - name: Apply deployment and service
         run: |
-          kubectl apply -f k8s/deployment.yaml
+          sed 's|image: yeet:latest|image: ghcr.io/${{ github.repository_owner }}/yeet:${{ github.sha }}|g' k8s/deployment.yaml \
+            | kubectl apply -f -
           kubectl apply -f k8s/service.yaml
           kubectl apply -f k8s/ingress.yaml
 
