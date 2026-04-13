@@ -70,9 +70,12 @@ kubectl apply -f k8s/mongo-secret.yaml
 
 # ── 5. Replace __API_KEY__ token and apply deployment ─────────────────────────
 # sed pipes into kubectl apply — the real key is never written to disk.
+# imagePullPolicy is set to Never so Kubernetes uses the local Docker image
+# and never attempts a registry pull (avoids Docker Hub rate limits locally).
 echo ">>> Applying deployment (replacing __API_KEY__ token)..."
 sed "s|__API_KEY__|${API_KEY}|g" k8s/deployment.yaml \
   | sed "s|image: yeet:latest|image: ${IMAGE}|g" \
+  | sed "s|imagePullPolicy: IfNotPresent|imagePullPolicy: Never|g" \
   | kubectl apply -f -
 
 kubectl apply -f k8s/service.yaml
