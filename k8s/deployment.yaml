@@ -20,10 +20,7 @@ spec:
             - containerPort: 8080
           env:
             - name: API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: yeet-secret
-                  key: api-key
+              value: "__API_KEY__"    # replaced by CI before kubectl apply
             - name: MONGO_URI
               valueFrom:
                 secretKeyRef:
