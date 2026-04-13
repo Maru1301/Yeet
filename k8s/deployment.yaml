@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yeet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: yeet
+  template:
+    metadata:
+      labels:
+        app: yeet
+    spec:
+      containers:
+        - name: yeet
+          image: yeet:latest          # replace with your registry image, e.g. ghcr.io/yourname/yeet:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: yeet-secret
+                  key: api-key
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: yeet-secret
+                  key: mongo-uri
+            - name: PORT
+              value: "8080"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

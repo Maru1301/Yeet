@@ -36,7 +36,7 @@ const customConfig: CustomConfig = {
   Release: {
     sourcePublicPath: '/',
     rootFolder: '""',
-    proxyApiUrl: JSON.stringify(`//localhost:8080`),   // relative — Go serves both static and API on the same port
+    proxyApiUrl: JSON.stringify(''),   // empty → relative URLs; Go serves both static and API on the same port
     env: JSON.stringify('Release'),
   },
 };

@@ -1,14 +1,21 @@
 package main
 
 import (
-	"database/sql"
-	"strings"
+	"context"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var db *sql.DB
+var (
+	mongoClient *mongo.Client
+	mongoDB     *mongo.Database
+)
+
+// ── domain types (public surface unchanged) ───────────────────────────────────
 
 type conversation struct {
 	ID        string
@@ -23,233 +30,258 @@ type message struct {
 	Content string
 }
 
-func initDB(path string) error {
-	var err error
-	db, err = sql.Open("sqlite", path)
-	if err != nil {
-		return err
-	}
-	// Single writer prevents SQLITE_BUSY on concurrent requests
-	db.SetMaxOpenConns(1)
+// ── MongoDB document structs ──────────────────────────────────────────────────
 
-	_, err = db.Exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;`)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS conversations (
-			id         TEXT PRIMARY KEY,
-			topic      TEXT NOT NULL DEFAULT '',
-			model      TEXT NOT NULL DEFAULT '',
-			created_at TEXT NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS messages (
-			id              INTEGER PRIMARY KEY AUTOINCREMENT,
-			conversation_id TEXT NOT NULL,
-			role            TEXT NOT NULL,
-			content         TEXT NOT NULL,
-			FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-		);
-		CREATE TABLE IF NOT EXISTS prompts (
-			id         TEXT PRIMARY KEY,
-			title      TEXT NOT NULL DEFAULT '',
-			prompt     TEXT NOT NULL DEFAULT '',
-			favorite   INTEGER NOT NULL DEFAULT 0,
-			created_at INTEGER NOT NULL DEFAULT 0,
-			updated_at INTEGER NOT NULL DEFAULT 0
-		);
-	`)
-	if err != nil {
-		return err
-	}
-	// Migration: add isLive column if not present (SQLite ALTER TABLE ADD COLUMN is idempotent-safe with the check below)
-	_, err = db.Exec(`ALTER TABLE conversations ADD COLUMN is_live INTEGER NOT NULL DEFAULT 0`)
-	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
-		return err
-	}
-	return nil
+type convDoc struct {
+	ID        string    `bson:"_id"`
+	Topic     string    `bson:"topic"`
+	Model     string    `bson:"model"`
+	CreatedAt time.Time `bson:"createdAt"`
+	IsLive    bool      `bson:"isLive"`
 }
 
+type msgDoc struct {
+	ID             primitive.ObjectID `bson:"_id,omitempty"`
+	ConversationID string             `bson:"conversationId"`
+	Role           string             `bson:"role"`
+	Content        string             `bson:"content"`
+}
+
+type promptDoc struct {
+	ID        string `bson:"_id"`
+	Title     string `bson:"title"`
+	Prompt    string `bson:"prompt"`
+	Favorite  bool   `bson:"favorite"`
+	CreatedAt int64  `bson:"createdAt"`
+	UpdatedAt int64  `bson:"updatedAt"`
+}
+
+// collection shorthands
+func convColl() *mongo.Collection   { return mongoDB.Collection("conversations") }
+func msgColl() *mongo.Collection    { return mongoDB.Collection("messages") }
+func promptColl() *mongo.Collection { return mongoDB.Collection("prompts") }
+
+// ── init ──────────────────────────────────────────────────────────────────────
+
+func initDB(uri string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+	if err != nil {
+		return err
+	}
+	if err := client.Ping(ctx, nil); err != nil {
+		return err
+	}
+	mongoClient = client
+	mongoDB = client.Database("yeet")
+
+	// Index on messages.conversationId for fast per-conversation lookups
+	_, err = msgColl().Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "conversationId", Value: 1}},
+	})
+	return err
+}
+
+// ── conversations ─────────────────────────────────────────────────────────────
+
 func createConversation(id, model string) error {
-	_, err := db.Exec(
-		`INSERT INTO conversations (id, model, created_at) VALUES (?, ?, ?)`,
-		id, model, time.Now().UTC().Format(time.RFC3339),
-	)
+	_, err := convColl().InsertOne(context.Background(), convDoc{
+		ID:        id,
+		Model:     model,
+		CreatedAt: time.Now().UTC(),
+	})
 	return err
 }
 
 func getConversation(id string) (*conversation, error) {
-	var c conversation
-	var createdAt string
-	var isLive int
-	err := db.QueryRow(
-		`SELECT id, topic, model, created_at, is_live FROM conversations WHERE id = ?`, id,
-	).Scan(&c.ID, &c.Topic, &c.Model, &createdAt, &isLive)
-	if err == sql.ErrNoRows {
+	var doc convDoc
+	err := convColl().FindOne(context.Background(), bson.D{{Key: "_id", Value: id}}).Decode(&doc)
+	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	c.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	c.IsLive = isLive != 0
-	return &c, nil
+	return docToConv(doc), nil
 }
+
+// listConversations returns conversations that have at least one message, newest first.
+func listConversations() ([]conversation, error) {
+	ctx := context.Background()
+
+	// Find all conversationIds that have at least one message
+	ids, err := msgColl().Distinct(ctx, "conversationId", bson.D{})
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return []conversation{}, nil
+	}
+
+	cursor, err := convColl().Find(ctx,
+		bson.D{{Key: "_id", Value: bson.D{{Key: "$in", Value: ids}}}},
+		options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var result []conversation
+	for cursor.Next(ctx) {
+		var doc convDoc
+		if err := cursor.Decode(&doc); err != nil {
+			return nil, err
+		}
+		result = append(result, *docToConv(doc))
+	}
+	return result, cursor.Err()
+}
+
+func deleteConversation(id string) error {
+	ctx := context.Background()
+	// Delete messages first, then the conversation
+	if _, err := msgColl().DeleteMany(ctx, bson.D{{Key: "conversationId", Value: id}}); err != nil {
+		return err
+	}
+	_, err := convColl().DeleteOne(ctx, bson.D{{Key: "_id", Value: id}})
+	return err
+}
+
+func setTopic(id, topic string) error {
+	_, err := convColl().UpdateOne(
+		context.Background(),
+		bson.D{{Key: "_id", Value: id}},
+		bson.D{{Key: "$set", Value: bson.D{{Key: "topic", Value: topic}}}},
+	)
+	return err
+}
+
+func updateModel(id, model string) error {
+	_, err := convColl().UpdateOne(
+		context.Background(),
+		bson.D{{Key: "_id", Value: id}},
+		bson.D{{Key: "$set", Value: bson.D{{Key: "model", Value: model}}}},
+	)
+	return err
+}
+
+// ── messages ──────────────────────────────────────────────────────────────────
 
 func getMessages(conversationID string) ([]message, error) {
-	rows, err := db.Query(
-		`SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id`,
-		conversationID,
+	cursor, err := msgColl().Find(
+		context.Background(),
+		bson.D{{Key: "conversationId", Value: conversationID}},
+		options.Find().SetSort(bson.D{{Key: "_id", Value: 1}}),
 	)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var msgs []message
-	for rows.Next() {
-		var m message
-		if err := rows.Scan(&m.Role, &m.Content); err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, m)
-	}
-	return msgs, rows.Err()
+	defer cursor.Close(context.Background())
+	return decodeMsgs(cursor)
 }
 
+// getOutlineMessages returns messages with content truncated to 100 code points.
 func getOutlineMessages(conversationID string) ([]message, error) {
-	rows, err := db.Query(
-		`SELECT role, substr(content, 1, 100) FROM messages WHERE conversation_id = ? ORDER BY id`,
-		conversationID,
-	)
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.D{{Key: "conversationId", Value: conversationID}}}},
+		{{Key: "$sort", Value: bson.D{{Key: "_id", Value: 1}}}},
+		{{Key: "$project", Value: bson.D{
+			{Key: "role", Value: 1},
+			{Key: "content", Value: bson.D{
+				{Key: "$substrCP", Value: bson.A{"$content", 0, 100}},
+			}},
+		}}},
+	}
+	cursor, err := msgColl().Aggregate(context.Background(), pipeline)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var msgs []message
-	for rows.Next() {
-		var m message
-		if err := rows.Scan(&m.Role, &m.Content); err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, m)
-	}
-	return msgs, rows.Err()
+	defer cursor.Close(context.Background())
+	return decodeMsgs(cursor)
 }
 
 // getMessagesPaged returns up to limit messages ending at the tail of the
 // conversation, skipping offset messages from the end. Messages are returned
 // in chronological order. hasMore is true when older messages still exist.
 func getMessagesPaged(conversationID string, offset, limit int) ([]message, bool, error) {
-	var total int
-	if err := db.QueryRow(
-		`SELECT COUNT(*) FROM messages WHERE conversation_id = ?`, conversationID,
-	).Scan(&total); err != nil {
+	ctx := context.Background()
+	filter := bson.D{{Key: "conversationId", Value: conversationID}}
+
+	total, err := msgColl().CountDocuments(ctx, filter)
+	if err != nil {
 		return nil, false, err
 	}
-	rows, err := db.Query(`
-		SELECT role, content FROM (
-			SELECT id, role, content FROM messages
-			WHERE conversation_id = ?
-			ORDER BY id DESC LIMIT ? OFFSET ?
-		) ORDER BY id ASC`,
-		conversationID, limit, offset,
+
+	// Fetch from the tail: sort DESC, skip offset, take limit — then reverse to chronological
+	cursor, err := msgColl().Find(ctx, filter,
+		options.Find().
+			SetSort(bson.D{{Key: "_id", Value: -1}}).
+			SetSkip(int64(offset)).
+			SetLimit(int64(limit)),
 	)
 	if err != nil {
 		return nil, false, err
 	}
-	defer rows.Close()
-	var msgs []message
-	for rows.Next() {
-		var m message
-		if err := rows.Scan(&m.Role, &m.Content); err != nil {
-			return nil, false, err
-		}
-		msgs = append(msgs, m)
+	defer cursor.Close(ctx)
+
+	batch, err := decodeMsgs(cursor)
+	if err != nil {
+		return nil, false, err
 	}
-	return msgs, total > offset+limit, rows.Err()
+	// Reverse to chronological order
+	for i, j := 0, len(batch)-1; i < j; i, j = i+1, j-1 {
+		batch[i], batch[j] = batch[j], batch[i]
+	}
+	return batch, total > int64(offset+limit), nil
 }
 
 func appendMessage(conversationID, role, content string) error {
-	_, err := db.Exec(
-		`INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)`,
-		conversationID, role, content,
-	)
+	_, err := msgColl().InsertOne(context.Background(), msgDoc{
+		ConversationID: conversationID,
+		Role:           role,
+		Content:        content,
+	})
 	return err
 }
 
-// listConversations returns conversations that have at least one message, newest first.
-func listConversations() ([]conversation, error) {
-	rows, err := db.Query(`
-		SELECT c.id, c.topic, c.model, c.created_at, c.is_live
-		FROM conversations c
-		WHERE EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = c.id)
-		ORDER BY c.created_at DESC
-	`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var convs []conversation
-	for rows.Next() {
-		var c conversation
-		var createdAt string
-		var isLive int
-		if err := rows.Scan(&c.ID, &c.Topic, &c.Model, &createdAt, &isLive); err != nil {
-			return nil, err
-		}
-		c.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		c.IsLive = isLive != 0
-		convs = append(convs, c)
-	}
-	return convs, rows.Err()
-}
+// ── live sessions ─────────────────────────────────────────────────────────────
 
 type liveTurn struct {
 	Role    string
 	Content string
 }
 
-// saveLiveSession inserts a live session conversation and its transcript turns in a single transaction.
+// saveLiveSession inserts a live-session conversation and its transcript turns.
+// Note: MongoDB transactions require a replica set. Sequential inserts are used
+// here for compatibility with standalone MongoDB (Docker/k8s single-node).
 func saveLiveSession(conversationID, topic string, turns []liveTurn) error {
-	tx, err := db.Begin()
+	ctx := context.Background()
+
+	_, err := convColl().InsertOne(ctx, convDoc{
+		ID:        conversationID,
+		Topic:     topic,
+		CreatedAt: time.Now().UTC(),
+		IsLive:    true,
+	})
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
-
-	_, err = tx.Exec(
-		`INSERT INTO conversations (id, topic, model, created_at, is_live) VALUES (?, ?, ?, ?, 1)`,
-		conversationID, topic, "", time.Now().UTC().Format(time.RFC3339),
-	)
-	if err != nil {
-		return err
+	if len(turns) == 0 {
+		return nil
 	}
 
-	for _, turn := range turns {
-		_, err = tx.Exec(
-			`INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)`,
-			conversationID, turn.Role, turn.Content,
-		)
-		if err != nil {
-			return err
+	docs := make([]any, len(turns))
+	for i, t := range turns {
+		docs[i] = msgDoc{
+			ConversationID: conversationID,
+			Role:           t.Role,
+			Content:        t.Content,
 		}
 	}
-
-	return tx.Commit()
-}
-
-func deleteConversation(id string) error {
-	_, err := db.Exec(`DELETE FROM conversations WHERE id = ?`, id)
-	return err
-}
-
-func setTopic(id, topic string) error {
-	_, err := db.Exec(`UPDATE conversations SET topic = ? WHERE id = ?`, topic, id)
-	return err
-}
-
-func updateModel(id, model string) error {
-	_, err := db.Exec(`UPDATE conversations SET model = ? WHERE id = ?`, model, id)
+	_, err = msgColl().InsertMany(ctx, docs)
 	return err
 }
 
@@ -265,25 +297,35 @@ type promptRow struct {
 }
 
 func listPrompts() ([]promptRow, error) {
-	rows, err := db.Query(`SELECT id, title, prompt, favorite, created_at, updated_at FROM prompts ORDER BY updated_at DESC`)
+	cursor, err := promptColl().Find(
+		context.Background(),
+		bson.D{},
+		options.Find().SetSort(bson.D{{Key: "updatedAt", Value: -1}}),
+	)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer cursor.Close(context.Background())
+
 	var out []promptRow
-	for rows.Next() {
-		var p promptRow
-		var fav int
-		if err := rows.Scan(&p.ID, &p.Title, &p.Prompt, &fav, &p.CreatedAt, &p.UpdatedAt); err != nil {
+	for cursor.Next(context.Background()) {
+		var doc promptDoc
+		if err := cursor.Decode(&doc); err != nil {
 			return nil, err
 		}
-		p.Favorite = fav != 0
-		out = append(out, p)
+		out = append(out, promptRow{
+			ID:        doc.ID,
+			Title:     doc.Title,
+			Prompt:    doc.Prompt,
+			Favorite:  doc.Favorite,
+			CreatedAt: doc.CreatedAt,
+			UpdatedAt: doc.UpdatedAt,
+		})
 	}
 	if out == nil {
 		out = []promptRow{}
 	}
-	return out, rows.Err()
+	return out, cursor.Err()
 }
 
 func upsertPromptRow(p promptRow) (string, error) {
@@ -295,25 +337,24 @@ func upsertPromptRow(p promptRow) (string, error) {
 		p.CreatedAt = now
 	}
 	p.UpdatedAt = now
-	fav := 0
-	if p.Favorite {
-		fav = 1
-	}
-	_, err := db.Exec(`
-		INSERT INTO prompts (id, title, prompt, favorite, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			title      = excluded.title,
-			prompt     = excluded.prompt,
-			favorite   = excluded.favorite,
-			updated_at = excluded.updated_at`,
-		p.ID, p.Title, p.Prompt, fav, p.CreatedAt, p.UpdatedAt,
+
+	_, err := promptColl().UpdateOne(
+		context.Background(),
+		bson.D{{Key: "_id", Value: p.ID}},
+		bson.D{{Key: "$set", Value: bson.D{
+			{Key: "title", Value: p.Title},
+			{Key: "prompt", Value: p.Prompt},
+			{Key: "favorite", Value: p.Favorite},
+			{Key: "createdAt", Value: p.CreatedAt},
+			{Key: "updatedAt", Value: p.UpdatedAt},
+		}}},
+		options.Update().SetUpsert(true),
 	)
 	return p.ID, err
 }
 
 func deletePromptRow(id string) error {
-	_, err := db.Exec(`DELETE FROM prompts WHERE id = ?`, id)
+	_, err := promptColl().DeleteOne(context.Background(), bson.D{{Key: "_id", Value: id}})
 	return err
 }
 
@@ -357,4 +398,28 @@ func importPromptRows(items []promptRow) (added, updated, skipped int, err error
 		}
 	}
 	return
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+func docToConv(doc convDoc) *conversation {
+	return &conversation{
+		ID:        doc.ID,
+		Topic:     doc.Topic,
+		Model:     doc.Model,
+		CreatedAt: doc.CreatedAt,
+		IsLive:    doc.IsLive,
+	}
+}
+
+func decodeMsgs(cursor *mongo.Cursor) ([]message, error) {
+	var result []message
+	for cursor.Next(context.Background()) {
+		var doc msgDoc
+		if err := cursor.Decode(&doc); err != nil {
+			return nil, err
+		}
+		result = append(result, message{Role: doc.Role, Content: doc.Content})
+	}
+	return result, cursor.Err()
 }

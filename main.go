@@ -116,16 +116,18 @@ func geminiErrorMessage(status int, body []byte) string {
 // ── main ──────────────────────────────────────────────────────────────────────
 
 func main() {
-	fmt.Print("Please enter your Google AI Studio API key (required for Gemini access): ")
-	var apiKey string
-	fmt.Scanln(&apiKey)
+	apiKey := getEnv("API_KEY", "")
 	if apiKey == "" {
-		log.Fatal("API_KEY variable is required (Google AI Studio API key)")
+		fmt.Print("Please enter your Google AI Studio API key: ")
+		fmt.Scanln(&apiKey)
+	}
+	if apiKey == "" {
+		log.Fatal("API_KEY env var or stdin input is required")
 	}
 	port := getEnv("PORT", "8080")
-	dbPath := getEnv("DB_PATH", "yeet.db")
+	mongoURI := getEnv("MONGO_URI", "mongodb://localhost:27017")
 
-	if err := initDB(dbPath); err != nil {
+	if err := initDB(mongoURI); err != nil {
 		log.Fatalf("initDB: %v", err)
 	}
 

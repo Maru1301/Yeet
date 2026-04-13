@@ -1,0 +1,27 @@
+# Optional — requires an Ingress controller (e.g. nginx-ingress) in your cluster.
+# Remove or skip this file if you set the Service type to LoadBalancer.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: yeet
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"   # keep SSE streams alive
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: yeet.example.com      # replace with your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: yeet
+                port:
+                  number: 80
+  # Uncomment to enable TLS (requires cert-manager or a manually created Secret)
+  # tls:
+  #   - hosts:
+  #       - yeet.example.com
+  #     secretName: yeet-tls

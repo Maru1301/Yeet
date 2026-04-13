@@ -1,0 +1,11 @@
+.git
+client-app/node_modules
+client-app/dist
+yeet
+yeet.exe
+yeet.db
+yeet.db-shm
+yeet.db-wal
+docs
+specs
+*.md
