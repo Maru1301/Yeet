@@ -16,12 +16,19 @@
 
 set -euo pipefail
 
+# ── Load local secrets if present ────────────────────────────────────────────
+if [[ -f "$(dirname "$0")/local-env.sh" ]]; then
+  # shellcheck source=local-env.sh.example
+  source "$(dirname "$0")/local-env.sh"
+fi
+
 CLUSTER="${KIND_CLUSTER:-yeet}"
 IMAGE="yeet:local"
 
 # ── 1. Validate ───────────────────────────────────────────────────────────────
 if [[ -z "${API_KEY:-}" ]]; then
-  echo "ERROR: API_KEY is not set. Run:  export API_KEY=AIza..."
+  echo "ERROR: API_KEY is not set."
+  echo "       Copy local-env.sh.example → local-env.sh and fill in your key."
   exit 1
 fi
 
