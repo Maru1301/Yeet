@@ -20,8 +20,7 @@ spec:
                 name: yeet
                 port:
                   number: 80
-  # Uncomment to enable TLS (requires cert-manager or a manually created Secret)
-  # tls:
-  #   - hosts:
-  #       - yeet.example.com
-  #     secretName: yeet-tls
+  tls:
+    - hosts:
+        - yeet.example.com
+      secretName: yeet-tls

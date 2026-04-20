@@ -58,7 +58,20 @@ if [[ -z "${SKIP_BUILD:-}" ]]; then
   fi
 fi
 
-# ── 4. Create k8s Secret from local-env.sh values ────────────────────────────
+# ── 4. Create TLS certificate for local HTTPS (requires mkcert) ──────────────
+if ! kubectl get secret yeet-tls &>/dev/null; then
+  echo ">>> Generating TLS cert with mkcert..."
+  # Get Windows %TEMP% directly from PowerShell (avoids Git Bash path conversion issues).
+  CERT_DIR_WIN=$(powershell.exe -NoProfile -Command '$env:TEMP' | tr -d '\r\n')
+  powershell.exe -NoProfile -Command "
+    mkcert -install
+    mkcert -cert-file '${CERT_DIR_WIN}\yeet-tls.crt' -key-file '${CERT_DIR_WIN}\yeet-tls.key' yeet.example.com
+    kubectl create secret tls yeet-tls --cert='${CERT_DIR_WIN}\yeet-tls.crt' --key='${CERT_DIR_WIN}\yeet-tls.key'
+    Remove-Item '${CERT_DIR_WIN}\yeet-tls.crt', '${CERT_DIR_WIN}\yeet-tls.key'
+  "
+fi
+
+# ── 5. Create k8s Secret from local-env.sh values ────────────────────────────
 # Real values never touch any file on disk — only live in the Secret object.
 echo ">>> Applying k8s secret..."
 kubectl create secret generic yeet-secret \
@@ -66,26 +79,23 @@ kubectl create secret generic yeet-secret \
   --from-literal=mongo-uri="${MONGO_URI:-mongodb://mongo:27017}" \
   --save-config --dry-run=client -o yaml | kubectl apply -f -
 
-# ── 5. Apply infrastructure manifests ─────────────────────────────────────────
+# ── 6. Apply infrastructure manifests ─────────────────────────────────────────
 echo ">>> Applying infrastructure..."
 kubectl apply -f k8s/pvc.yaml
 kubectl apply -f k8s/mongo.yaml
 
-# ── 6. Apply deployment ───────────────────────────────────────────────────────
+# ── 7. Apply deployment ───────────────────────────────────────────────────────
 echo ">>> Applying deployment..."
 sed "s|image: yeet:latest|image: ${IMAGE}|g" k8s/deployment.yaml \
   | kubectl apply -f -
 
 kubectl apply -f k8s/service.yaml
+kubectl apply -f k8s/ingress.yaml
 
-# ── 7. Wait for rollout ───────────────────────────────────────────────────────
+# ── 8. Wait for rollout ───────────────────────────────────────────────────────
 echo ">>> Waiting for rollout..."
 kubectl rollout status deployment/mongo --timeout=120s
 kubectl rollout status deployment/yeet  --timeout=120s
 
-# ── 8. Port-forward so you can open the app in your browser ──────────────────
 echo ""
-echo "✓ Deployed. Opening port-forward on http://localhost:8080"
-echo "  Press Ctrl+C to stop."
-echo ""
-kubectl port-forward service/yeet 8080:80
+echo "✓ Deployed."
